@@ -150,6 +150,7 @@ class CGameContext : public IGameServer
 	static void ConTuneSetZoneMsgLeave(IConsole::IResult *pResult, void *pUserData);
 	static void ConMapbug(IConsole::IResult *pResult, void *pUserData);
 	static void ConSwitchOpen(IConsole::IResult *pResult, void *pUserData);
+	static void ConHoTile(IConsole::IResult *pResult, void *pUserData);
 	static void ConPause(IConsole::IResult *pResult, void *pUserData);
 	static void ConChangeMap(IConsole::IResult *pResult, void *pUserData);
 	static void ConRandomMap(IConsole::IResult *pResult, void *pUserData);
@@ -284,6 +285,20 @@ public:
 	CHeap *m_pVoteOptionHeap;
 	CVoteOptionServer *m_pVoteOptionFirst;
 	CVoteOptionServer *m_pVoteOptionLast;
+
+	enum EHoTile
+	{
+		HO_TILE_KILL = 0,
+		HO_TILE_BORDER,
+		HO_TILE_FREEZE,
+		HO_TILE_DEEPFREEZE,
+		HO_TILE_LIVEFREEZE,
+		HO_TILE_TELE,
+		HO_TILE_SPEEDUP,
+		NUM_HO_TILES
+	};
+	bool m_aHoTileEnabled[NUM_HO_TILES];
+	bool HoTileEnabled(EHoTile Tile) const { return m_aHoTileEnabled[Tile]; }
 
 	// helper functions
 	void CreateDamageInd(wvec2 Pos, float AngleMod, int Amount, CClientMask Mask = CClientMask().set());
@@ -481,6 +496,9 @@ private:
 	static void ConToCheckTeleporter(IConsole::IResult *pResult, void *pUserData);
 	void Teleport(CCharacter *pChr, wvec2 Pos);
 	static void ConTeleport(IConsole::IResult *pResult, void *pUserData);
+	static void ConHoTp(IConsole::IResult *pResult, void *pUserData);
+	static void ConHoSpeed(IConsole::IResult *pResult, void *pUserData);
+	static void ConHoSpeedLimit(IConsole::IResult *pResult, void *pUserData);
 
 	static void ConCredits(IConsole::IResult *pResult, void *pUserData);
 	static void ConInfo(IConsole::IResult *pResult, void *pUserData);

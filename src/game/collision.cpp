@@ -378,13 +378,15 @@ int CCollision::IntersectLineTeleHook(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutCollisi
 		int iy = round_to_int(Pos.y);
 
 		int Index = GetPureMapIndex(Pos);
-		if(pTeleNr)
+		if(pTeleNr && m_HoTileTeleEnabled)
 		{
 			if(g_Config.m_SvOldTeleportHook)
 				*pTeleNr = IsTeleport(Index);
 			else
 				*pTeleNr = IsTeleportHook(Index);
 		}
+		else if(pTeleNr)
+			*pTeleNr = 0;
 		if(pTeleNr && *pTeleNr)
 		{
 			if(pOutCollision)
@@ -436,13 +438,15 @@ int CCollision::IntersectLineTeleWeapon(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutColli
 		int iy = round_to_int(Pos.y);
 
 		int Index = GetPureMapIndex(Pos);
-		if(pTeleNr)
+		if(pTeleNr && m_HoTileTeleEnabled)
 		{
 			if(g_Config.m_SvOldTeleportWeapons)
 				*pTeleNr = IsTeleport(Index);
 			else
 				*pTeleNr = IsTeleportWeapon(Index);
 		}
+		else if(pTeleNr)
+			*pTeleNr = 0;
 		if(pTeleNr && *pTeleNr)
 		{
 			if(pOutCollision)

@@ -41,6 +41,8 @@ public:
 	void Unload();
 	void FillAntibot(CAntibotMapData *pMapData) const;
 
+	void SetHoTileTeleEnabled(bool Enabled) { m_HoTileTeleEnabled = Enabled; }
+
 	bool CheckPoint(wcoord x, wcoord y) const { return IsSolid(round_to_int(x), round_to_int(y)); }
 	bool CheckPoint(wvec2 Pos) const { return CheckPoint(Pos.x, Pos.y); }
 	bool CheckPoint(float x, float y) const { return CheckPoint(wcoord(x), wcoord(y)); }
@@ -176,6 +178,8 @@ private:
 	CSwitchTile *m_pSwitch;
 	CTuneTile *m_pTune;
 	CDoorTile *m_pDoor;
+
+	bool m_HoTileTeleEnabled = true;
 
 	// TILE_TELEIN
 	std::map<int, std::vector<wvec2>> m_TeleIns;

@@ -91,6 +91,7 @@ CGameContext::CGameContext(bool Resetting) :
 
 	mem_zero(&m_aLastPlayerInput, sizeof(m_aLastPlayerInput));
 	std::fill(std::begin(m_aPlayerHasInput), std::end(m_aPlayerHasInput), false);
+	std::fill(std::begin(m_aHoTileEnabled), std::end(m_aHoTileEnabled), true);
 
 	m_pController = nullptr;
 
@@ -3324,6 +3325,118 @@ void CGameContext::ConSwitchOpen(IConsole::IResult *pResult, void *pUserData)
 	}
 }
 
+void CGameContext::ConHoTile(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	const char *pTile = pResult->GetString(0);
+
+	static const char *s_apHoTileNames[] = {"kill", "border", "freeze", "deepfreeze", "livefreeze", "tele", "speedup"};
+	static_assert(std::size(s_apHoTileNames) == NUM_HO_TILES);
+
+	if(str_comp_nocase(pTile, "all") == 0)
+	{
+		if(pResult->NumArguments() == 1)
+		{
+			for(int i = 0; i < NUM_HO_TILES; ++i)
+			{
+				char aBuf[128];
+				str_format(aBuf, sizeof(aBuf), "ho_tile %s is %s", s_apHoTileNames[i], pSelf->m_aHoTileEnabled[i] ? "on" : "off");
+				pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+			}
+			return;
+		}
+
+		const char *pState = pResult->GetString(1);
+		bool Enabled;
+		if(str_comp_nocase(pState, "on") == 0)
+			Enabled = true;
+		else if(str_comp_nocase(pState, "off") == 0)
+			Enabled = false;
+		else
+		{
+			pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", "usage: ho_tile [all|kill|border|freeze|deepfreeze|livefreeze|tele|speedup] [off|on]");
+			return;
+		}
+
+		std::fill(std::begin(pSelf->m_aHoTileEnabled), std::end(pSelf->m_aHoTileEnabled), Enabled);
+		pSelf->Collision()->SetHoTileTeleEnabled(Enabled);
+		char aBuf[128];
+		str_format(aBuf, sizeof(aBuf), "ho_tile all %s", Enabled ? "on" : "off");
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+		return;
+	}
+
+	EHoTile Tile;
+	const char *pTileName;
+	if(str_comp_nocase(pTile, "kill") == 0)
+	{
+		Tile = HO_TILE_KILL;
+		pTileName = "kill";
+	}
+	else if(str_comp_nocase(pTile, "border") == 0)
+	{
+		Tile = HO_TILE_BORDER;
+		pTileName = "border";
+	}
+	else if(str_comp_nocase(pTile, "freeze") == 0)
+	{
+		Tile = HO_TILE_FREEZE;
+		pTileName = "freeze";
+	}
+	else if(str_comp_nocase(pTile, "deepfreeze") == 0)
+	{
+		Tile = HO_TILE_DEEPFREEZE;
+		pTileName = "deepfreeze";
+	}
+	else if(str_comp_nocase(pTile, "livefreeze") == 0)
+	{
+		Tile = HO_TILE_LIVEFREEZE;
+		pTileName = "livefreeze";
+	}
+	else if(str_comp_nocase(pTile, "tele") == 0)
+	{
+		Tile = HO_TILE_TELE;
+		pTileName = "tele";
+	}
+	else if(str_comp_nocase(pTile, "speedup") == 0)
+	{
+		Tile = HO_TILE_SPEEDUP;
+		pTileName = "speedup";
+	}
+	else
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", "usage: ho_tile [all|kill|border|freeze|deepfreeze|livefreeze|tele|speedup] [off|on]");
+		return;
+	}
+
+	if(pResult->NumArguments() == 1)
+	{
+		char aBuf[128];
+		str_format(aBuf, sizeof(aBuf), "ho_tile %s is %s", pTileName, pSelf->m_aHoTileEnabled[Tile] ? "on" : "off");
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+		return;
+	}
+
+	bool Enabled;
+	const char *pState = pResult->GetString(1);
+	if(str_comp_nocase(pState, "on") == 0)
+		Enabled = true;
+	else if(str_comp_nocase(pState, "off") == 0)
+		Enabled = false;
+	else
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", "usage: ho_tile [all|kill|border|freeze|deepfreeze|livefreeze|tele|speedup] [off|on]");
+		return;
+	}
+
+	pSelf->m_aHoTileEnabled[Tile] = Enabled;
+	if(Tile == HO_TILE_TELE)
+		pSelf->Collision()->SetHoTileTeleEnabled(Enabled);
+	char aBuf[128];
+	str_format(aBuf, sizeof(aBuf), "ho_tile %s %s", pTileName, Enabled ? "on" : "off");
+	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+}
+
 void CGameContext::ConPause(IConsole::IResult *pResult, void *pUserData)
 {
 	CGameContext *pSelf = (CGameContext *)pUserData;
@@ -3935,6 +4048,7 @@ void CGameContext::OnConsoleInit()
 	Console()->Register("tune_zone_leave", "i[zone] r[message]", CFGFLAG_SERVER | CFGFLAG_GAME, ConTuneSetZoneMsgLeave, this, "Which message to display on zone leave; use 0 for normal area");
 	Console()->Register("mapbug", "s[mapbug]", CFGFLAG_SERVER | CFGFLAG_GAME, ConMapbug, this, "Enable map compatibility mode using the specified bug (example: grenade-doubleexplosion@ddnet.tw)");
 	Console()->Register("switch_open", "i[switch]", CFGFLAG_SERVER | CFGFLAG_GAME, ConSwitchOpen, this, "Whether a switch is deactivated by default (otherwise activated)");
+	Console()->Register("ho_tile", "s['all'|'kill'|'border'|'freeze'|'deepfreeze'|'livefreeze'|'tele'|'speedup'] ?s['off'|'on']", CFGFLAG_SERVER, ConHoTile, this, "Show, disable or enable selected tile effects without changing the map");
 	Console()->Register("pause_game", "", CFGFLAG_SERVER, ConPause, this, "Pause/unpause game");
 	Console()->Register("change_map", "r[map]", CFGFLAG_SERVER | CFGFLAG_STORE, ConChangeMap, this, "Change map");
 	Console()->Register("random_map", "?i[stars] ?i[max stars]", CFGFLAG_SERVER | CFGFLAG_STORE, ConRandomMap, this, "Random map");
@@ -3976,6 +4090,9 @@ void CGameContext::RegisterDDRaceCommands()
 	Console()->Register("totele", "i[number]", CFGFLAG_SERVER | CMDFLAG_TEST, ConToTeleporter, this, "Teleports you to teleporter i");
 	Console()->Register("totelecp", "i[number]", CFGFLAG_SERVER | CMDFLAG_TEST, ConToCheckTeleporter, this, "Teleports you to checkpoint teleporter i");
 	Console()->Register("tele", "?i[id] ?i[id]", CFGFLAG_SERVER | CMDFLAG_TEST, ConTeleport, this, "Teleports player i (or you) to player i (or you to where you look at)");
+	Console()->Register("ho_tp", "?s[x] ?s[y] ?i[id] ?i[reset]", CFGFLAG_SERVER, ConHoTp, this, "Teleports player id (or you) to tile x/y, or to your cursor/view position without x/y. reset=1 marks the race as cheated");
+	Console()->Register("ho_speed", "i[id] s['x'|'y'] ?f[value]", CFGFLAG_SERVER, ConHoSpeed, this, "Show or set a player's velocity component");
+	Console()->Register("ho_speedlimit", "?i['0'|'1']", CFGFLAG_SERVER, ConHoSpeedLimit, this, "Enable or disable the character velocity length limit and x velocity ramp");
 	Console()->Register("addweapon", "i[weapon-id]", CFGFLAG_SERVER | CMDFLAG_TEST, ConAddWeapon, this, "Gives weapon with id i to you (all = -1, hammer = 0, gun = 1, shotgun = 2, grenade = 3, laser = 4, ninja = 5)");
 	Console()->Register("removeweapon", "i[weapon-id]", CFGFLAG_SERVER | CMDFLAG_TEST, ConRemoveWeapon, this, "removes weapon with id i from you (all = -1, hammer = 0, gun = 1, shotgun = 2, grenade = 3, laser = 4, ninja = 5)");
 	Console()->Register("shotgun", "", CFGFLAG_SERVER | CMDFLAG_TEST, ConShotgun, this, "Gives a shotgun to you");
