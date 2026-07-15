@@ -75,6 +75,16 @@ public:
 void StrToInts(int *pInts, size_t NumInts, const char *pStr);
 bool IntsToStr(const int *pInts, size_t NumInts, char *pStr, size_t StrSize);
 
+inline wvec2 CalcPos(wvec2 Pos, wvec2 Velocity, float Curvature, float Speed, float Time)
+{
+	wvec2 n;
+	Time *= Speed;
+	n.x = Pos.x + Velocity.x * Time;
+	n.y = Pos.y + Velocity.y * Time + Curvature / 10000 * (Time * Time);
+	return n;
+}
+
+// Client-side float projectiles / particles still use vec2
 inline vec2 CalcPos(vec2 Pos, vec2 Velocity, float Curvature, float Speed, float Time)
 {
 	vec2 n;
@@ -105,6 +115,12 @@ inline T SaturatedAdd(T Min, T Max, T Current, T Modifier)
 			Current = Max;
 		return Current;
 	}
+}
+
+// World-velocity helper: limits stay float (tuning), current is wcoord
+inline wcoord SaturatedAdd(float Min, float Max, wcoord Current, float Modifier)
+{
+	return SaturatedAdd(wcoord(Min), wcoord(Max), Current, wcoord(Modifier));
 }
 
 float VelocityRamp(float Value, float Start, float Range, float Curvature);
@@ -184,13 +200,13 @@ class CCharacterCore
 
 public:
 	static constexpr float PhysicalSize() { return 28.0f; }
-	static constexpr vec2 PhysicalSizeVec2() { return vec2(28.0f, 28.0f); }
-	vec2 m_Pos;
-	vec2 m_Vel;
+	static wvec2 PhysicalSizeVec2() { return wvec2(28.0f, 28.0f); }
+	wvec2 m_Pos;
+	wvec2 m_Vel;
 
-	vec2 m_HookPos;
-	vec2 m_HookDir;
-	vec2 m_HookTeleBase;
+	wvec2 m_HookPos;
+	wvec2 m_HookDir;
+	wvec2 m_HookTeleBase;
 	int m_HookTick;
 	int m_HookState;
 	std::set<int> m_AttachedPlayers;
@@ -210,7 +226,7 @@ public:
 	// ninja
 	struct
 	{
-		vec2 m_ActivationDir;
+		wvec2 m_ActivationDir;
 		int m_ActivationTick;
 		int m_CurrentMoveTime;
 		int m_OldVelAmount;

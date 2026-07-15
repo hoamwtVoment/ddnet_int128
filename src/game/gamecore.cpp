@@ -145,12 +145,12 @@ void CCharacterCore::SetCoreWorld(CWorldCore *pWorld, CCollision *pCollision, CT
 
 void CCharacterCore::Reset()
 {
-	m_Pos = vec2(0, 0);
-	m_Vel = vec2(0, 0);
+	m_Pos = wvec2(0, 0);
+	m_Vel = wvec2(0, 0);
 	m_NewHook = false;
-	m_HookPos = vec2(0, 0);
-	m_HookDir = vec2(0, 0);
-	m_HookTeleBase = vec2(0, 0);
+	m_HookPos = wvec2(0, 0);
+	m_HookDir = wvec2(0, 0);
+	m_HookTeleBase = wvec2(0, 0);
 	m_HookTick = 0;
 	m_HookState = HOOK_IDLE;
 	SetHookedPlayer(-1);
@@ -194,7 +194,7 @@ void CCharacterCore::Tick(bool UseInput, bool DoDeferredTick)
 
 	// get ground state
 	const bool Grounded = m_pCollision->IsOnGround(m_Pos, PhysicalSize());
-	vec2 TargetDirection = normalize(vec2(m_Input.m_TargetX, m_Input.m_TargetY));
+	wvec2 TargetDirection = normalize(wvec2(m_Input.m_TargetX, m_Input.m_TargetY));
 
 	m_Vel.y += m_Tuning.m_Gravity;
 
@@ -312,12 +312,12 @@ void CCharacterCore::Tick(bool UseInput, bool DoDeferredTick)
 	}
 	else if(m_HookState == HOOK_FLYING)
 	{
-		vec2 HookBase = m_Pos;
+		wvec2 HookBase = m_Pos;
 		if(m_NewHook)
 		{
 			HookBase = m_HookTeleBase;
 		}
-		vec2 NewPos = m_HookPos + m_HookDir * m_Tuning.m_HookFireSpeed;
+		wvec2 NewPos = m_HookPos + m_HookDir * m_Tuning.m_HookFireSpeed;
 		if(distance(HookBase, NewPos) > m_Tuning.m_HookLength)
 		{
 			m_HookState = HOOK_RETRACT_START;
@@ -353,7 +353,7 @@ void CCharacterCore::Tick(bool UseInput, bool DoDeferredTick)
 				if(!pCharCore || pCharCore == this || (!(m_Super || pCharCore->m_Super) && ((m_Id != -1 && !m_pTeams->CanCollide(i, m_Id)) || pCharCore->m_Solo || m_Solo)))
 					continue;
 
-				vec2 ClosestPoint;
+				wvec2 ClosestPoint;
 				if(closest_point_on_line(m_HookPos, NewPos, pCharCore->m_Pos, ClosestPoint))
 				{
 					if(distance(pCharCore->m_Pos, ClosestPoint) < PhysicalSize() + 2.0f)
@@ -421,7 +421,7 @@ void CCharacterCore::Tick(bool UseInput, bool DoDeferredTick)
 		// don't do this hook routine when we are already hooked to a player
 		if(m_HookedPlayer == -1 && distance(m_HookPos, m_Pos) > 46.0f)
 		{
-			vec2 HookVel = normalize(m_HookPos - m_Pos) * m_Tuning.m_HookDragAccel;
+			wvec2 HookVel = normalize(m_HookPos - m_Pos) * m_Tuning.m_HookDragAccel;
 			// the hook as more power to drag you up then down.
 			// this makes it easier to get on top of an platform
 			if(HookVel.y > 0)
@@ -434,7 +434,7 @@ void CCharacterCore::Tick(bool UseInput, bool DoDeferredTick)
 			else
 				HookVel.x *= 0.75f;
 
-			vec2 NewVel = m_Vel + HookVel;
+			wvec2 NewVel = m_Vel + HookVel;
 
 			// check if we are under the legal limit for the hook
 			const float NewVelLength = length(NewVel);
@@ -476,7 +476,7 @@ void CCharacterCore::TickDeferred()
 			float Distance = distance(m_Pos, pCharCore->m_Pos);
 			if(Distance > 0)
 			{
-				vec2 Dir = normalize(m_Pos - pCharCore->m_Pos);
+				wvec2 Dir = normalize(m_Pos - pCharCore->m_Pos);
 
 				bool CanCollide = (m_Super || pCharCore->m_Super) || (!m_CollisionDisabled && !pCharCore->m_CollisionDisabled && m_Tuning.m_PlayerCollision);
 
@@ -502,7 +502,7 @@ void CCharacterCore::TickDeferred()
 						float HookAccel = m_Tuning.m_HookDragAccel * (Distance / m_Tuning.m_HookLength);
 						float DragSpeed = m_Tuning.m_HookDragSpeed;
 
-						vec2 Temp;
+						wvec2 Temp;
 						// add force to the hooked player
 						Temp.x = SaturatedAdd(-DragSpeed, DragSpeed, pCharCore->m_Vel.x, HookAccel * Dir.x * 1.5f);
 						Temp.y = SaturatedAdd(-DragSpeed, DragSpeed, pCharCore->m_Vel.y, HookAccel * Dir.y * 1.5f);
@@ -533,9 +533,9 @@ void CCharacterCore::Move()
 
 	m_Vel.x = m_Vel.x * RampValue;
 
-	vec2 NewPos = m_Pos;
+	wvec2 NewPos = m_Pos;
 
-	vec2 OldVel = m_Vel;
+	wvec2 OldVel = m_Vel;
 	bool Grounded = false;
 	m_pCollision->MoveBox(&NewPos, &m_Vel, PhysicalSizeVec2(),
 		vec2(m_Tuning.m_GroundElasticityX,
@@ -568,11 +568,11 @@ void CCharacterCore::Move()
 		if(Distance > 0)
 		{
 			int End = Distance + 1;
-			vec2 LastPos = m_Pos;
+			wvec2 LastPos = m_Pos;
 			for(int i = 0; i < End; i++)
 			{
 				float a = i / Distance;
-				vec2 Pos = mix(m_Pos, NewPos, a);
+				wvec2 Pos = mix(m_Pos, NewPos, a);
 				for(int p = 0; p < MAX_CLIENTS; p++)
 				{
 					CCharacterCore *pCharCore = m_pWorld->m_apCharacters[p];
