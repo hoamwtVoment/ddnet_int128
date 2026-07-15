@@ -745,7 +745,8 @@ void CGameClient::UpdatePositions()
 			}
 			else
 			{
-				m_LocalCharacterPos = mix(m_PredictedPrevChar.m_Pos, m_PredictedChar.m_Pos, Client()->PredIntraGameTick(g_Config.m_ClDummy));
+				const wvec2 Mixed = mix(m_PredictedPrevChar.m_Pos, m_PredictedChar.m_Pos, Client()->PredIntraGameTick(g_Config.m_ClDummy));
+				m_LocalCharacterPos = WorldFloatFromRender(ToRenderSpace(Mixed));
 			}
 		}
 		else
@@ -753,7 +754,10 @@ void CGameClient::UpdatePositions()
 			if(!(m_Snap.m_pGameInfoObj && m_Snap.m_pGameInfoObj->m_GameStateFlags & GAMESTATEFLAG_GAMEOVER))
 			{
 				if(m_Snap.m_pLocalCharacter)
-					m_LocalCharacterPos = mix(m_PredictedPrevChar.m_Pos, m_PredictedChar.m_Pos, Client()->PredIntraGameTick(g_Config.m_ClDummy));
+				{
+					const wvec2 Mixed = mix(m_PredictedPrevChar.m_Pos, m_PredictedChar.m_Pos, Client()->PredIntraGameTick(g_Config.m_ClDummy));
+					m_LocalCharacterPos = WorldFloatFromRender(ToRenderSpace(Mixed));
+				}
 			}
 			//		else
 			//			m_LocalCharacterPos = mix(m_PredictedPrevChar.m_Pos, m_PredictedChar.m_Pos, Client()->PredIntraGameTick(g_Config.m_ClDummy));
@@ -761,9 +765,11 @@ void CGameClient::UpdatePositions()
 	}
 	else if(m_Snap.m_pLocalCharacter && m_Snap.m_pLocalPrevCharacter)
 	{
-		m_LocalCharacterPos = mix(
-			vec2((float)i128_to_double(CharacterNetPosX(m_Snap.m_pLocalPrevCharacter)), (float)i128_to_double(CharacterNetPosY(m_Snap.m_pLocalPrevCharacter))),
-			vec2((float)i128_to_double(CharacterNetPosX(m_Snap.m_pLocalCharacter)), (float)i128_to_double(CharacterNetPosY(m_Snap.m_pLocalCharacter))), Client()->IntraGameTick(g_Config.m_ClDummy));
+		const vec2 Rel = MixToRenderSpace(
+			CharacterNetPosX(m_Snap.m_pLocalPrevCharacter), CharacterNetPosY(m_Snap.m_pLocalPrevCharacter),
+			CharacterNetPosX(m_Snap.m_pLocalCharacter), CharacterNetPosY(m_Snap.m_pLocalCharacter),
+			Client()->IntraGameTick(g_Config.m_ClDummy));
+		m_LocalCharacterPos = WorldFloatFromRender(Rel);
 	}
 
 	// spectator position
@@ -800,8 +806,24 @@ void CGameClient::UpdatePositions()
 
 void CGameClient::UpdateRenderOrigin()
 {
-	// Float loses view width far from the origin (center±half rounds to center).
-	// Use a camera-local origin so tees, map edge fill, and HUD world space stay usable.
+	// Prefer high-precision character pixels for the origin. Absolute float world
+	// coords lose more than a tile of precision beyond ~2^24 px.
+	i128 CharPx = I128(0);
+	i128 CharPy = I128(0);
+	bool HaveChar = false;
+	if(Predict() && m_Snap.m_pLocalCharacter)
+	{
+		CharPx = m_PredictedChar.m_Pos.x.round_to_i128_pixels();
+		CharPy = m_PredictedChar.m_Pos.y.round_to_i128_pixels();
+		HaveChar = true;
+	}
+	else if(m_Snap.m_pLocalCharacter)
+	{
+		CharPx = CharacterNetPosX(m_Snap.m_pLocalCharacter);
+		CharPy = CharacterNetPosY(m_Snap.m_pLocalCharacter);
+		HaveChar = true;
+	}
+
 	const vec2 C = m_Camera.m_Center;
 	constexpr float Threshold = 100000.0f; // ~3125 tiles
 	bool NeedOrigin = !std::isfinite(C.x) || !std::isfinite(C.y) ||
@@ -815,16 +837,79 @@ void CGameClient::UpdateRenderOrigin()
 		if(C.x < -Margin || C.y < -Margin || C.x > MapMaxX + Margin || C.y > MapMaxY + Margin)
 			NeedOrigin = true;
 	}
+	if(!NeedOrigin && HaveChar)
+	{
+		// Character far outside map tiles even if float camera looks "near"
+		if(Collision() && Collision()->GetWidth() > 0)
+		{
+			const i128 MapMaxPx = I128((int64_t)Collision()->GetWidth() * 32);
+			const i128 MapMaxPy = I128((int64_t)Collision()->GetHeight() * 32);
+			const i128 Margin = I128(201 * 32);
+			if(CharPx < -Margin || CharPy < -Margin || CharPx > MapMaxPx + Margin || CharPy > MapMaxPy + Margin)
+				NeedOrigin = true;
+		}
+	}
 
-	if(NeedOrigin && std::isfinite(C.x) && std::isfinite(C.y))
-		m_RenderOrigin = vec2(std::floor(C.x + 0.5f), std::floor(C.y + 0.5f));
+	if(NeedOrigin && HaveChar)
+	{
+		// Keep origin stable; only re-anchor when player drifts far in relative space.
+		// Re-anchoring every frame would desync float origin vs i128 residual.
+		constexpr double ReanchorPx = 50000.0; // ~1562 tiles; still tiny for float
+		bool Reanchor = !m_RenderOriginActive;
+		if(!Reanchor)
+		{
+			const double Dx = i128_to_double(CharPx - m_RenderOriginPxX);
+			const double Dy = i128_to_double(CharPy - m_RenderOriginPxY);
+			if(!std::isfinite(Dx) || !std::isfinite(Dy) || std::abs(Dx) > ReanchorPx || std::abs(Dy) > ReanchorPx)
+				Reanchor = true;
+		}
+		if(Reanchor)
+		{
+			m_RenderOriginPxX = CharPx;
+			m_RenderOriginPxY = CharPy;
+			m_RenderOrigin = vec2((float)i128_to_double(CharPx), (float)i128_to_double(CharPy));
+		}
+		m_RenderOriginActive = true;
+	}
+	else if(NeedOrigin && std::isfinite(C.x) && std::isfinite(C.y))
+	{
+		if(!m_RenderOriginActive)
+		{
+			m_RenderOrigin = vec2(std::floor(C.x + 0.5f), std::floor(C.y + 0.5f));
+			m_RenderOriginPxX = i128_from_double((double)m_RenderOrigin.x);
+			m_RenderOriginPxY = i128_from_double((double)m_RenderOrigin.y);
+		}
+		m_RenderOriginActive = true;
+	}
 	else
+	{
 		m_RenderOrigin = vec2(0.0f, 0.0f);
+		m_RenderOriginPxX = I128(0);
+		m_RenderOriginPxY = I128(0);
+		m_RenderOriginActive = false;
+	}
+}
+
+vec2 CGameClient::ToRenderSpace(i128 WorldPx, i128 WorldPy) const
+{
+	if(!m_RenderOriginActive)
+		return vec2((float)i128_to_double(WorldPx), (float)i128_to_double(WorldPy));
+	return vec2((float)i128_to_double(WorldPx - m_RenderOriginPxX), (float)i128_to_double(WorldPy - m_RenderOriginPxY));
+}
+
+vec2 CGameClient::ToRenderSpace(const wvec2 &WorldPos) const
+{
+	return ToRenderSpace(WorldPos.x.round_to_i128_pixels(), WorldPos.y.round_to_i128_pixels());
+}
+
+vec2 CGameClient::MixToRenderSpace(i128 PrevX, i128 PrevY, i128 CurX, i128 CurY, float Intra) const
+{
+	return mix(ToRenderSpace(PrevX, PrevY), ToRenderSpace(CurX, CurY), Intra);
 }
 
 void CGameClient::MapScreenWorldRender()
 {
-	// Camera view in render-local space: world point W is drawn at W - m_RenderOrigin
+	// Camera view in render-local coordinates
 	Graphics()->MapScreenToInterface(m_Camera.m_Center.x - m_RenderOrigin.x, m_Camera.m_Center.y - m_RenderOrigin.y, m_Camera.m_Zoom);
 }
 
@@ -3839,13 +3924,12 @@ void CGameClient::UpdateRenderedCharacters()
 		m_aClients[i].m_RenderPrev = m_Snap.m_aCharacters[i].m_Prev;
 		m_aClients[i].m_IsPredicted = false;
 		m_aClients[i].m_IsPredictedLocal = false;
-		// Reconstruct int64 world pixels from lo/hi net fields (float only for GPU)
-		// Float is only for local render offsets; full i128 lives in snap + prediction core.
-		vec2 UnpredPos = mix(
-			vec2((float)i128_to_double(CharacterNetPosX(&m_Snap.m_aCharacters[i].m_Prev)), (float)i128_to_double(CharacterNetPosY(&m_Snap.m_aCharacters[i].m_Prev))),
-			vec2((float)i128_to_double(CharacterNetPosX(&m_Snap.m_aCharacters[i].m_Cur)), (float)i128_to_double(CharacterNetPosY(&m_Snap.m_aCharacters[i].m_Cur))),
+		// Mix in i128-relative render space so far lands keep sub-tile precision.
+		// Store as OriginFloat + relative so ToRenderSpace(float) recovers the relative.
+		vec2 RelPos = MixToRenderSpace(
+			CharacterNetPosX(&m_Snap.m_aCharacters[i].m_Prev), CharacterNetPosY(&m_Snap.m_aCharacters[i].m_Prev),
+			CharacterNetPosX(&m_Snap.m_aCharacters[i].m_Cur), CharacterNetPosY(&m_Snap.m_aCharacters[i].m_Cur),
 			Client()->IntraGameTick(g_Config.m_ClDummy));
-		vec2 Pos = UnpredPos;
 
 		CCharacter *pChar = m_PredictedWorld.GetCharacterById(i);
 		if(Predict() && (i == m_Snap.m_LocalClientId || (AntiPingPlayers() && !IsOtherTeam(i))) && pChar)
@@ -3855,10 +3939,10 @@ void CGameClient::UpdateRenderedCharacters()
 
 			m_aClients[i].m_IsPredicted = true;
 
-			Pos = mix(
-				vec2((float)i128_to_double(CharacterNetPosX(&m_aClients[i].m_RenderPrev)), (float)i128_to_double(CharacterNetPosY(&m_aClients[i].m_RenderPrev))),
-				vec2((float)i128_to_double(CharacterNetPosX(&m_aClients[i].m_RenderCur)), (float)i128_to_double(CharacterNetPosY(&m_aClients[i].m_RenderCur))),
-				m_aClients[i].m_IsPredicted ? Client()->PredIntraGameTick(g_Config.m_ClDummy) : Client()->IntraGameTick(g_Config.m_ClDummy));
+			RelPos = MixToRenderSpace(
+				CharacterNetPosX(&m_aClients[i].m_RenderPrev), CharacterNetPosY(&m_aClients[i].m_RenderPrev),
+				CharacterNetPosX(&m_aClients[i].m_RenderCur), CharacterNetPosY(&m_aClients[i].m_RenderCur),
+				Client()->PredIntraGameTick(g_Config.m_ClDummy));
 
 			if(i == m_Snap.m_LocalClientId || (PredictDummy() && i == m_aLocalIds[!g_Config.m_ClDummy]))
 			{
@@ -3877,12 +3961,13 @@ void CGameClient::UpdateRenderedCharacters()
 				m_aClients[i].m_RenderCur.m_Angle = m_Snap.m_aCharacters[i].m_Cur.m_Angle;
 
 				if(g_Config.m_ClAntiPingSmooth)
-					Pos = GetSmoothPos(i);
+					RelPos = ToRenderSpace(GetSmoothPos(i));
 			}
 		}
-		m_aClients[i].m_RenderPos = Pos;
+		// Absolute-looking float = origin + relative (precise when origin active)
+		m_aClients[i].m_RenderPos = WorldFloatFromRender(RelPos);
 		if(Predict() && i == m_Snap.m_LocalClientId)
-			m_LocalCharacterPos = Pos;
+			m_LocalCharacterPos = m_aClients[i].m_RenderPos;
 	}
 }
 

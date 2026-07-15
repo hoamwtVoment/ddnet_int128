@@ -332,12 +332,26 @@ public:
 
 	vec2 m_LocalCharacterPos;
 
-	// World-space origin subtracted for GPU-friendly rendering at huge coords.
-	// Zero when near the map; set to camera center when |center| is large.
+	// World-space origin for GPU-friendly rendering at huge coords.
+	// Subtract i128 origin *before* converting to float so sub-tile motion stays precise
+	// (absolute float world coords quantize to multi-tile steps far out).
 	vec2 m_RenderOrigin = vec2(0.0f, 0.0f);
+	i128 m_RenderOriginPxX = I128(0);
+	i128 m_RenderOriginPxY = I128(0);
+	bool m_RenderOriginActive = false;
 	void UpdateRenderOrigin();
 	vec2 RenderOrigin() const { return m_RenderOrigin; }
+	bool RenderOriginActive() const { return m_RenderOriginActive; }
+	// World float (already imprecise far out) → render-local
 	vec2 ToRenderSpace(vec2 WorldPos) const { return WorldPos - m_RenderOrigin; }
+	// High-precision path: subtract pixel origin in i128, then cast to float
+	vec2 ToRenderSpace(i128 WorldPx, i128 WorldPy) const;
+	vec2 ToRenderSpace(const wvec2 &WorldPos) const;
+	// Interpolate two i128 pixel positions in render-local space
+	vec2 MixToRenderSpace(i128 PrevX, i128 PrevY, i128 CurX, i128 CurY, float Intra) const;
+	// Absolute-looking float for systems that still store "world" as float:
+	// OriginFloat + precise relative (so ToRenderSpace(float) recovers the relative).
+	vec2 WorldFloatFromRender(vec2 RenderLocal) const { return m_RenderOrigin + RenderLocal; }
 	// Set MapScreen to camera view in render-local coordinates (call before drawing entities).
 	void MapScreenWorldRender();
 

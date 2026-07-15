@@ -84,8 +84,8 @@ void CItems::RenderProjectile(const CProjectileData *pCurrent, int ItemId)
 		}
 	}
 
-	vec2 Pos = CalcPos(pCurrent->m_StartPos, pCurrent->m_StartVel, Curvature, Speed, Ct);
-	vec2 PrevPos = CalcPos(pCurrent->m_StartPos, pCurrent->m_StartVel, Curvature, Speed, Ct - 0.001f);
+	vec2 Pos = GameClient()->ToRenderSpace(CalcPos(pCurrent->m_StartPos, pCurrent->m_StartVel, Curvature, Speed, Ct));
+	vec2 PrevPos = GameClient()->ToRenderSpace(CalcPos(pCurrent->m_StartPos, pCurrent->m_StartVel, Curvature, Speed, Ct - 0.001f));
 
 	float Alpha = 1.f;
 	if(IsOtherTeam)
@@ -129,7 +129,7 @@ void CItems::RenderPickup(const CNetObj_Pickup *pPrev, const CNetObj_Pickup *pCu
 	int CurWeapon = std::clamp(pCurrent->m_Subtype, 0, NUM_WEAPONS - 1);
 	int QuadOffset = 2;
 	float IntraTick = IsPredicted ? Client()->PredIntraGameTick(g_Config.m_ClDummy) : Client()->IntraGameTick(g_Config.m_ClDummy);
-	vec2 Pos = mix(vec2(pPrev->m_X, pPrev->m_Y), vec2(pCurrent->m_X, pCurrent->m_Y), IntraTick);
+	vec2 Pos = GameClient()->ToRenderSpace(mix(vec2(pPrev->m_X, pPrev->m_Y), vec2(pCurrent->m_X, pCurrent->m_Y), IntraTick));
 	if(pCurrent->m_Type == POWERUP_HEALTH)
 	{
 		QuadOffset = m_PickupHealthOffset;
@@ -216,19 +216,19 @@ void CItems::RenderFlags()
 
 void CItems::RenderFlag(const CNetObj_Flag *pPrev, const CNetObj_Flag *pCurrent, const CNetObj_GameData *pPrevGameData, const CNetObj_GameData *pCurGameData)
 {
-	vec2 Pos = mix(vec2(pPrev->m_X, pPrev->m_Y), vec2(pCurrent->m_X, pCurrent->m_Y), Client()->IntraGameTick(g_Config.m_ClDummy));
+	vec2 Pos = GameClient()->ToRenderSpace(mix(vec2(pPrev->m_X, pPrev->m_Y), vec2(pCurrent->m_X, pCurrent->m_Y), Client()->IntraGameTick(g_Config.m_ClDummy)));
 	if(pCurGameData)
 	{
 		int FlagCarrier = (pCurrent->m_Team == TEAM_RED) ? pCurGameData->m_FlagCarrierRed : pCurGameData->m_FlagCarrierBlue;
 		// use the flagcarriers position if available
 		if(FlagCarrier >= 0 && GameClient()->m_Snap.m_aCharacters[FlagCarrier].m_Active)
-			Pos = GameClient()->m_aClients[FlagCarrier].m_RenderPos;
+			Pos = GameClient()->ToRenderSpace(GameClient()->m_aClients[FlagCarrier].m_RenderPos);
 
 		// make sure that the flag isn't interpolated between capture and return
 		if(pPrevGameData &&
 			((pCurrent->m_Team == TEAM_RED && pPrevGameData->m_FlagCarrierRed != pCurGameData->m_FlagCarrierRed) ||
 				(pCurrent->m_Team == TEAM_BLUE && pPrevGameData->m_FlagCarrierBlue != pCurGameData->m_FlagCarrierBlue)))
-			Pos = vec2(pCurrent->m_X, pCurrent->m_Y);
+			Pos = GameClient()->ToRenderSpace(vec2(pCurrent->m_X, pCurrent->m_Y));
 	}
 
 	float Size = 42.0f;
@@ -322,7 +322,7 @@ void CItems::RenderLaser(const CLaserData *pCurrent, bool IsPredicted)
 		TicksHead *= (((pCurrent->m_Subtype >> 1) % 3) * 4.0f) + 1;
 		TicksHead *= (pCurrent->m_Subtype & 1) ? -1 : 1;
 	}
-	RenderLaser(pCurrent->m_From, pCurrent->m_To, OuterColor, InnerColor, Ticks, TicksHead, Type);
+	RenderLaser(GameClient()->ToRenderSpace(pCurrent->m_From), GameClient()->ToRenderSpace(pCurrent->m_To), OuterColor, InnerColor, Ticks, TicksHead, Type);
 }
 
 void CItems::RenderLaser(vec2 From, vec2 Pos, ColorRGBA OuterColor, ColorRGBA InnerColor, float TicksBody, float TicksHead, int Type) const
@@ -445,6 +445,9 @@ void CItems::OnRender()
 {
 	if(Client()->State() != IClient::STATE_ONLINE && Client()->State() != IClient::STATE_DEMOPLAYBACK)
 		return;
+
+	// Same camera-local space as tees/map far-lands fill (absolute float collapses off-map)
+	GameClient()->MapScreenWorldRender();
 
 	bool IsSuper = GameClient()->IsLocalCharSuper();
 	int Ticks = Client()->GameTick(g_Config.m_ClDummy) % Client()->GameTickSpeed();
