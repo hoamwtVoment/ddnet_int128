@@ -38,8 +38,10 @@ CEntity::~CEntity()
 
 bool CEntity::GameLayerClipped(wvec2 CheckPos)
 {
-	const int64_t Tx = CheckPos.x.to_int64() / 32;
-	const int64_t Ty = CheckPos.y.to_int64() / 32;
-	return Tx < -200 || Tx > Collision()->GetWidth() + 200 ||
-	       Ty < -200 || Ty > Collision()->GetHeight() + 200;
+	const i128 Tx = CheckPos.x.to_i128_pixels() / I128(32);
+	const i128 Ty = CheckPos.y.to_i128_pixels() / I128(32);
+	const i128 W = I128(Collision()->GetWidth());
+	const i128 H = I128(Collision()->GetHeight());
+	return Tx < I128(-200) || Tx > W + I128(200) ||
+	       Ty < I128(-200) || Ty > H + I128(200);
 }

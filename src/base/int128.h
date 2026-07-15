@@ -226,19 +226,29 @@ inline i128 operator*(i128 a, i128 b)
 		return lo;
 	};
 
-	uint64_t p0h = 0;
-	const uint64_t p0l = Mul64(a.lo, b.lo, &p0h);
-	uint64_t p1h = 0;
-	const uint64_t p1l = Mul64(a.lo, static_cast<uint64_t>(b.hi), &p1h);
-	uint64_t p2h = 0;
-	const uint64_t p2l = Mul64(static_cast<uint64_t>(a.hi), b.lo, &p2h);
-	(void)p1h;
-	(void)p2h;
+	// Full 128x128->128 product (truncate above 128 bits, keep low 128)
+	// (a.lo + a.hi*2^64) * (b.lo + b.hi*2^64)
+	uint64_t p00h = 0;
+	const uint64_t p00l = Mul64(a.lo, b.lo, &p00h);
+	uint64_t p01h = 0;
+	const uint64_t p01l = Mul64(a.lo, static_cast<uint64_t>(b.hi), &p01h);
+	uint64_t p10h = 0;
+	const uint64_t p10l = Mul64(static_cast<uint64_t>(a.hi), b.lo, &p10h);
+	// a.hi * b.hi only contributes to bits >= 128; ignore for low-128 result except carry into hi via mid terms
 
-	uint64_t rlo = p0l;
-	uint64_t rhi = p0h;
-	rhi += p1l;
-	rhi += p2l;
+	// sum = p00 + (p01 + p10) << 64
+	uint64_t rlo = p00l;
+	uint64_t rhi = p00h;
+	// add p01l to rhi with carry discarded beyond 128
+	{
+		const uint64_t sum = rhi + p01l;
+		rhi = sum;
+	}
+	{
+		const uint64_t sum = rhi + p10l;
+		rhi = sum;
+	}
+	// p01h and p10h would add to bits 128+; discarded for i128 truncate
 
 	i128 out{rlo, static_cast<int64_t>(rhi)};
 	return Neg ? -out : out;

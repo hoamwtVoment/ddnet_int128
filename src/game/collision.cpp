@@ -336,27 +336,28 @@ int CCollision::GetMoveRestrictions(CALLBACK_SWITCHACTIVE pfnSwitchActive, void 
 	return Restrictions;
 }
 
-int CCollision::GetTilePixels(int64_t Px, int64_t Py) const
+int CCollision::GetTilePixels(i128 Px, i128 Py) const
 {
 	if(!m_pTiles || m_Width <= 0 || m_Height <= 0)
 		return 0;
 
-	// Vanilla infinite-extending border tiles:
-	// tile index is clamped to the map edge. Outside the map you collide with
-	// whatever is on the perimeter (solid wall stays solid, air stays air).
-	// Use int64 so far coords clamp to the edge instead of wrapping via int32.
-	int64_t Nx = Px / 32;
-	int64_t Ny = Py / 32;
-	if(Nx < 0)
-		Nx = 0;
-	else if(Nx >= m_Width)
-		Nx = m_Width - 1;
-	if(Ny < 0)
-		Ny = 0;
-	else if(Ny >= m_Height)
-		Ny = m_Height - 1;
+	// Vanilla infinite-extending border: clamp tile index to map edge.
+	// Use full i128 so far-lands pixels are not truncated before clamp.
+	const i128 ThirtyTwo = I128(WORLD_TILE_SIZE);
+	i128 Nx = Px / ThirtyTwo;
+	i128 Ny = Py / ThirtyTwo;
+	const i128 W = I128(m_Width);
+	const i128 H = I128(m_Height);
+	if(Nx < I128(0))
+		Nx = I128(0);
+	else if(Nx >= W)
+		Nx = W - I128(1);
+	if(Ny < I128(0))
+		Ny = I128(0);
+	else if(Ny >= H)
+		Ny = H - I128(1);
 
-	const int Index = (int)Ny * m_Width + (int)Nx;
+	const int Index = static_cast<int>(i128_to_int64(Ny)) * m_Width + static_cast<int>(i128_to_int64(Nx));
 	if(m_pTiles[Index].m_Index >= TILE_SOLID && m_pTiles[Index].m_Index <= TILE_NOLASER)
 		return m_pTiles[Index].m_Index;
 	return 0;
@@ -364,19 +365,18 @@ int CCollision::GetTilePixels(int64_t Px, int64_t Py) const
 
 int CCollision::GetTile(int x, int y) const
 {
-	return GetTilePixels((int64_t)x, (int64_t)y);
+	return GetTilePixels(I128(x), I128(y));
 }
 
 bool CCollision::CheckPoint(wcoord x, wcoord y) const
 {
-	// Same solid rules as vanilla (no "all outside air is solid")
-	const int Index = GetTilePixels(x.round_to_int64(), y.round_to_int64());
+	const int Index = GetTilePixels(x.round_to_i128_pixels(), y.round_to_i128_pixels());
 	return Index == TILE_SOLID || Index == TILE_NOHOOK;
 }
 
 int CCollision::GetCollisionAt(wcoord x, wcoord y) const
 {
-	return GetTilePixels(x.round_to_int64(), y.round_to_int64());
+	return GetTilePixels(x.round_to_i128_pixels(), y.round_to_i128_pixels());
 }
 
 // TODO: rewrite this smarter!
@@ -419,12 +419,14 @@ int CCollision::IntersectLineTeleHook(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutCollisi
 	{
 		float a = i / (float)End;
 		wvec2 Pos = mix(Pos0, Pos1, a);
-		const int64_t ix64 = Pos.x.round_to_int64();
-		const int64_t iy64 = Pos.y.round_to_int64();
-		// int pixels only valid inside map; outside void skips through/hook-blocker tile logic
-		const bool InMap = ix64 >= 0 && iy64 >= 0 && ix64 < (int64_t)m_Width * 32 && iy64 < (int64_t)m_Height * 32;
-		const int ix = InMap ? (int)ix64 : 0;
-		const int iy = InMap ? (int)iy64 : 0;
+		const i128 ix128 = Pos.x.round_to_i128_pixels();
+		const i128 iy128 = Pos.y.round_to_i128_pixels();
+		const i128 MapWpx = I128(m_Width) * I128(WORLD_TILE_SIZE);
+		const i128 MapHpx = I128(m_Height) * I128(WORLD_TILE_SIZE);
+		const bool InMap = ix128 >= I128(0) && iy128 >= I128(0) && ix128 < MapWpx && iy128 < MapHpx;
+		// through/hook helpers take int pixel coords; only used when InMap (always fits int)
+		const int ix = InMap ? static_cast<int>(i128_to_int64(ix128)) : 0;
+		const int iy = InMap ? static_cast<int>(i128_to_int64(iy128)) : 0;
 
 		int Index = GetPureMapIndex(Pos);
 		if(pTeleNr && m_HoTileTeleEnabled)

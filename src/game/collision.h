@@ -92,8 +92,9 @@ public:
 	}
 
 	int GetTile(int x, int y) const;
-	// Pixel-space lookup without int32 wrap; outside the map returns 0 (air void).
-	int GetTilePixels(int64_t Px, int64_t Py) const;
+	// Pixel-space lookup; uses i128 so far-lands positions clamp to map edge correctly.
+	int GetTilePixels(i128 Px, i128 Py) const;
+	int GetTilePixels(int64_t Px, int64_t Py) const { return GetTilePixels(I128(Px), I128(Py)); }
 	int GetFrontTile(int x, int y) const;
 	int Entity(int x, int y, int Layer) const;
 	int GetPureMapIndex(wcoord x, wcoord y) const;

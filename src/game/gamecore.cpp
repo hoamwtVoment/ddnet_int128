@@ -697,10 +697,11 @@ void CCharacterCore::Quantize()
 {
 	// Match network precision without routing through int32:
 	// positions stay full int64 pixel range; vel/hook dir use 256 fixed-point.
-	m_Pos.x = wcoord(round_to_int64(m_Pos.x));
-	m_Pos.y = wcoord(round_to_int64(m_Pos.y));
-	m_HookPos.x = wcoord(round_to_int64(m_HookPos.x));
-	m_HookPos.y = wcoord(round_to_int64(m_HookPos.y));
+	// Quantize to integer pixels without truncating to int64 (that destroyed far-lands coords)
+	m_Pos.x = wcoord::FromIntegerPixels(m_Pos.x.round_to_i128_pixels());
+	m_Pos.y = wcoord::FromIntegerPixels(m_Pos.y.round_to_i128_pixels());
+	m_HookPos.x = wcoord::FromIntegerPixels(m_HookPos.x.round_to_i128_pixels());
+	m_HookPos.y = wcoord::FromIntegerPixels(m_HookPos.y.round_to_i128_pixels());
 	m_Vel.x = round_to_int(m_Vel.x * 256.0f) / 256.0f;
 	m_Vel.y = round_to_int(m_Vel.y * 256.0f) / 256.0f;
 	m_HookDir.x = round_to_int(m_HookDir.x * 256.0f) / 256.0f;
