@@ -59,6 +59,15 @@ public:
 	bool m_DebugRenderQuadClips;
 	bool m_DebugRenderClusterClips;
 	bool m_DebugRenderTileClips;
+
+	// GPU-only translation (not a gameplay coordinate system). When non-zero,
+	// MapScreen is Center - RenderOrigin so float keeps a usable view.
+	vec2 m_RenderOrigin = vec2(0.0f, 0.0f);
+	// Absolute camera position in world tiles (i128-derived). Used for edge hard-draw.
+	double m_CamTileX = 0.0;
+	double m_CamTileY = 0.0;
+	// True when absolute camera is outside the map rectangle.
+	bool m_OutsideMap = false;
 };
 
 class CRenderLayer : public CRenderComponent
@@ -218,6 +227,8 @@ protected:
 	void RenderTileLayer(const ColorRGBA &Color, const CRenderLayerParams &Params, CTileLayerVisuals *pTileLayerVisuals = nullptr);
 	void RenderTileBorder(const ColorRGBA &Color, int BorderX0, int BorderY0, int BorderX1, int BorderY1, CTileLayerVisuals *pTileLayerVisuals);
 	void RenderKillTileBorder(const ColorRGBA &Color);
+	// Vanilla-style hard stretch of edge tiles into the current MapScreen (relative or absolute).
+	void RenderHardEdgeStretch(const ColorRGBA &Color, const CRenderLayerParams &Params);
 
 	std::optional<CRenderLayerTile::CTileLayerVisuals> m_VisualTiles;
 	CMapItemLayerTilemap *m_pLayerTilemap;

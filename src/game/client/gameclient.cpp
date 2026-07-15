@@ -806,12 +806,91 @@ void CGameClient::UpdatePositions()
 
 void CGameClient::UpdateRenderOrigin()
 {
-	// Vanilla hard draw: always absolute world floats. No far-lands cell origin /
-	// relative MapScreen mode that "repairs" precision into a clean-looking world.
-	m_RenderOrigin = vec2(0.0f, 0.0f);
-	m_RenderOriginPxX = I128(0);
-	m_RenderOriginPxY = I128(0);
-	m_RenderOriginActive = false;
+	// GPU translation only: keep MapScreen near the origin so float still has a
+	// usable view. Gameplay coords stay absolute i128. Look stays vanilla hard-draw
+	// (edge stretch), not a rebuilt "pretty" far-lands world.
+	i128 CharPx = I128(0);
+	i128 CharPy = I128(0);
+	bool HaveChar = false;
+	if(Predict() && m_Snap.m_pLocalCharacter)
+	{
+		CharPx = m_PredictedChar.m_Pos.x.round_to_i128_pixels();
+		CharPy = m_PredictedChar.m_Pos.y.round_to_i128_pixels();
+		HaveChar = true;
+	}
+	else if(m_Snap.m_pLocalCharacter)
+	{
+		CharPx = CharacterNetPosX(m_Snap.m_pLocalCharacter);
+		CharPy = CharacterNetPosY(m_Snap.m_pLocalCharacter);
+		HaveChar = true;
+	}
+
+	const vec2 C = m_Camera.m_Center;
+	// Activate once float view width is at risk (~2^24 px) or we leave the map.
+	constexpr float Threshold = 8.0e6f; // pixels
+	bool NeedOrigin = !std::isfinite(C.x) || !std::isfinite(C.y) ||
+			  std::abs(C.x) > Threshold || std::abs(C.y) > Threshold;
+
+	if(!NeedOrigin && Collision() && Collision()->GetWidth() > 0)
+	{
+		const float MapMaxX = (float)Collision()->GetWidth() * 32.0f;
+		const float MapMaxY = (float)Collision()->GetHeight() * 32.0f;
+		const float Margin = 201.0f * 32.0f;
+		if(C.x < -Margin || C.y < -Margin || C.x > MapMaxX + Margin || C.y > MapMaxY + Margin)
+			NeedOrigin = true;
+	}
+	if(!NeedOrigin && HaveChar && Collision() && Collision()->GetWidth() > 0)
+	{
+		const i128 MapMaxPx = I128((int64_t)Collision()->GetWidth() * 32);
+		const i128 MapMaxPy = I128((int64_t)Collision()->GetHeight() * 32);
+		const i128 Margin = I128(201 * 32);
+		if(CharPx < -Margin || CharPy < -Margin || CharPx > MapMaxPx + Margin || CharPy > MapMaxPy + Margin)
+			NeedOrigin = true;
+	}
+
+	if(NeedOrigin && HaveChar)
+	{
+		const i128 Cell = I128(RENDER_ORIGIN_CELL_PX);
+		auto AlignDown = [&](i128 V) -> i128 {
+			if(V >= I128(0))
+				return (V / Cell) * Cell;
+			i128 Q = V / Cell;
+			if(Q * Cell != V)
+				Q = Q - I128(1);
+			return Q * Cell;
+		};
+		const i128 Ox = AlignDown(CharPx);
+		const i128 Oy = AlignDown(CharPy);
+		if(!m_RenderOriginActive || Ox != m_RenderOriginPxX || Oy != m_RenderOriginPxY)
+		{
+			m_RenderOriginPxX = Ox;
+			m_RenderOriginPxY = Oy;
+			m_RenderOrigin = vec2((float)i128_to_double(Ox), (float)i128_to_double(Oy));
+		}
+		m_RenderOriginActive = true;
+	}
+	else if(NeedOrigin && std::isfinite(C.x) && std::isfinite(C.y))
+	{
+		const float Cell = (float)RENDER_ORIGIN_CELL_PX;
+		const float Ox = std::floor(C.x / Cell) * Cell;
+		const float Oy = std::floor(C.y / Cell) * Cell;
+		const i128 OxI = i128_from_double((double)Ox);
+		const i128 OyI = i128_from_double((double)Oy);
+		if(!m_RenderOriginActive || OxI != m_RenderOriginPxX || OyI != m_RenderOriginPxY)
+		{
+			m_RenderOrigin = vec2(Ox, Oy);
+			m_RenderOriginPxX = OxI;
+			m_RenderOriginPxY = OyI;
+		}
+		m_RenderOriginActive = true;
+	}
+	else
+	{
+		m_RenderOrigin = vec2(0.0f, 0.0f);
+		m_RenderOriginPxX = I128(0);
+		m_RenderOriginPxY = I128(0);
+		m_RenderOriginActive = false;
+	}
 }
 
 vec2 CGameClient::ToRenderSpace(i128 WorldPx, i128 WorldPy) const
