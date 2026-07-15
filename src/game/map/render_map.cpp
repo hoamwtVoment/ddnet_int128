@@ -639,16 +639,45 @@ void CRenderMap::RenderTilemap(CTile *pTiles, int w, int h, float Scale, ColorRG
 
 	const bool ExtendTiles = (RenderFlags & TILERENDERFLAG_EXTEND) != 0;
 
-	int StartY = (int)(ScreenY0 / Scale) - 1;
-	int StartX = (int)(ScreenX0 / Scale) - 1;
-	int EndY = (int)(ScreenY1 / Scale) + 1;
-	int EndX = (int)(ScreenX1 / Scale) + 1;
+	// Use int64 for far cameras (e.g. tile 312500+) so StartX does not overflow int.
+	auto ScreenToTile = [](float Px, float Sc, bool Ceil) -> int64_t {
+		if(!(Sc > 0.0f) || !std::isfinite(Px) || !std::isfinite(Sc))
+			return 0;
+		const double T = (double)Px / (double)Sc;
+		if(!std::isfinite(T))
+			return 0;
+		const double R = Ceil ? std::ceil(T) : std::floor(T);
+		if(R > 9000000000000.0)
+			return 9000000000000LL;
+		if(R < -9000000000000.0)
+			return -9000000000000LL;
+		return (int64_t)R;
+	};
+
+	int64_t StartY = ScreenToTile(ScreenY0, Scale, false) - 1;
+	int64_t StartX = ScreenToTile(ScreenX0, Scale, false) - 1;
+	int64_t EndY = ScreenToTile(ScreenY1, Scale, true) + 1;
+	int64_t EndX = ScreenToTile(ScreenX1, Scale, true) + 1;
 	if(!ExtendTiles)
 	{
-		StartY = std::max(0, StartY);
-		StartX = std::max(0, StartX);
-		EndY = std::min(h, EndY);
-		EndX = std::min(w, EndX);
+		StartY = std::max((int64_t)0, StartY);
+		StartX = std::max((int64_t)0, StartX);
+		EndY = std::min((int64_t)h, EndY);
+		EndX = std::min((int64_t)w, EndX);
+	}
+	// Cap span to viewport-sized work (safety if screen bounds are nonsense)
+	constexpr int64_t MaxSpan = 128;
+	if(EndX - StartX > MaxSpan)
+	{
+		const int64_t Mid = (StartX + EndX) / 2;
+		StartX = Mid - MaxSpan / 2;
+		EndX = Mid + MaxSpan / 2;
+	}
+	if(EndY - StartY > MaxSpan)
+	{
+		const int64_t Mid = (StartY + EndY) / 2;
+		StartY = Mid - MaxSpan / 2;
+		EndY = Mid + MaxSpan / 2;
 	}
 
 	// adjust the texture shift according to mipmap level
@@ -656,12 +685,12 @@ void CRenderMap::RenderTilemap(CTile *pTiles, int w, int h, float Scale, ColorRG
 	float Frac = (1.25f / TexSize) * (1 / FinalTilesetScale);
 	float Nudge = (0.5f / TexSize) * (1 / FinalTilesetScale);
 
-	for(int y = StartY; y < EndY; y++)
+	for(int64_t y = StartY; y < EndY; y++)
 	{
-		for(int x = StartX; x < EndX; x++)
+		for(int64_t x = StartX; x < EndX; x++)
 		{
-			int mx = x;
-			int my = y;
+			int mx = (int)x;
+			int my = (int)y;
 
 			if(ExtendTiles)
 			{
@@ -674,6 +703,8 @@ void CRenderMap::RenderTilemap(CTile *pTiles, int w, int h, float Scale, ColorRG
 				if(my >= h)
 					my = h - 1;
 			}
+			else if(mx < 0 || my < 0 || mx >= w || my >= h)
+				continue;
 
 			int c = mx + my * w;
 
@@ -757,18 +788,20 @@ void CRenderMap::RenderTilemap(CTile *pTiles, int w, int h, float Scale, ColorRG
 					if(Graphics()->HasTextureArraysSupport())
 					{
 						Graphics()->QuadsSetSubsetFree(x0, y0, x1, y1, x2, y2, x3, y3, Index);
-						IGraphics::CQuadItem QuadItem(x * Scale, y * Scale, Scale, Scale);
+						IGraphics::CQuadItem QuadItem((float)((double)x * (double)Scale), (float)((double)y * (double)Scale), Scale, Scale);
 						Graphics()->QuadsTex3DDrawTL(&QuadItem, 1);
 					}
 					else
 					{
 						Graphics()->QuadsSetSubsetFree(x0, y0, x1, y1, x2, y2, x3, y3);
-						IGraphics::CQuadItem QuadItem(x * Scale, y * Scale, Scale, Scale);
+						IGraphics::CQuadItem QuadItem((float)((double)x * (double)Scale), (float)((double)y * (double)Scale), Scale, Scale);
 						Graphics()->QuadsDrawTL(&QuadItem, 1);
 					}
 				}
 			}
-			x += pTiles[c].m_Skip;
+			// m_Skip is for in-map RLE; off-map EXTEND reuses the edge tile — do not skip screen cells.
+			if(!ExtendTiles)
+				x += pTiles[c].m_Skip;
 		}
 	}
 

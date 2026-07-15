@@ -806,9 +806,12 @@ void CGameClient::UpdatePositions()
 
 void CGameClient::UpdateRenderOrigin()
 {
-	// GPU translation only: keep MapScreen near the origin so float still has a
-	// usable view. Gameplay coords stay absolute i128. Look stays vanilla hard-draw
-	// (edge stretch), not a rebuilt "pretty" far-lands world.
+	// Keep origin OFF for normal / mid-far play. The old 1e7 px (~312500 tile) threshold
+	// switched MapScreen to relative space while tile GPU buffers stayed absolute, which
+	// blanked the entire view. Off-map drawing uses absolute MapScreen + unbuffered
+	// TILERENDERFLAG_EXTEND (per-screen-cell edge clamp) instead.
+	//
+	// Only re-enable origin when floats are already non-finite (true extreme).
 	i128 CharPx = I128(0);
 	i128 CharPy = I128(0);
 	bool HaveChar = false;
@@ -826,18 +829,12 @@ void CGameClient::UpdateRenderOrigin()
 	}
 
 	const vec2 C = m_Camera.m_Center;
-	// Entity-only GPU origin. Do NOT enable just for leaving the map — that reanchored
-	// every 2048 tiles (CELL_PX/32) and made map layers vanish while still float-safe.
-	// Only when absolute float centers are non-finite or past ~2^24 px risk.
-	constexpr float Threshold = 1.0e7f; // pixels (~312500 tiles); well above 2048-tile cells
-	bool NeedOrigin = !std::isfinite(C.x) || !std::isfinite(C.y) ||
-			  std::abs(C.x) > Threshold || std::abs(C.y) > Threshold;
+	bool NeedOrigin = !std::isfinite(C.x) || !std::isfinite(C.y);
 	if(!NeedOrigin && HaveChar)
 	{
 		const double Ax = i128_to_double(CharPx);
 		const double Ay = i128_to_double(CharPy);
-		NeedOrigin = !std::isfinite(Ax) || !std::isfinite(Ay) ||
-			     std::abs(Ax) > (double)Threshold || std::abs(Ay) > (double)Threshold;
+		NeedOrigin = !std::isfinite(Ax) || !std::isfinite(Ay);
 	}
 
 	if(NeedOrigin && HaveChar)
@@ -853,27 +850,9 @@ void CGameClient::UpdateRenderOrigin()
 		};
 		const i128 Ox = AlignDown(CharPx);
 		const i128 Oy = AlignDown(CharPy);
-		if(!m_RenderOriginActive || Ox != m_RenderOriginPxX || Oy != m_RenderOriginPxY)
-		{
-			m_RenderOriginPxX = Ox;
-			m_RenderOriginPxY = Oy;
-			m_RenderOrigin = vec2((float)i128_to_double(Ox), (float)i128_to_double(Oy));
-		}
-		m_RenderOriginActive = true;
-	}
-	else if(NeedOrigin && std::isfinite(C.x) && std::isfinite(C.y))
-	{
-		const float Cell = (float)RENDER_ORIGIN_CELL_PX;
-		const float Ox = std::floor(C.x / Cell) * Cell;
-		const float Oy = std::floor(C.y / Cell) * Cell;
-		const i128 OxI = i128_from_double((double)Ox);
-		const i128 OyI = i128_from_double((double)Oy);
-		if(!m_RenderOriginActive || OxI != m_RenderOriginPxX || OyI != m_RenderOriginPxY)
-		{
-			m_RenderOrigin = vec2(Ox, Oy);
-			m_RenderOriginPxX = OxI;
-			m_RenderOriginPxY = OyI;
-		}
+		m_RenderOriginPxX = Ox;
+		m_RenderOriginPxY = Oy;
+		m_RenderOrigin = vec2((float)i128_to_double(Ox), (float)i128_to_double(Oy));
 		m_RenderOriginActive = true;
 	}
 	else

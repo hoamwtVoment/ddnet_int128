@@ -279,19 +279,10 @@ void CRenderLayerGroup::Render(const CRenderLayerParams &Params)
 {
 	int ParallaxZoom = std::clamp(std::max(m_pGroup->m_ParallaxX, m_pGroup->m_ParallaxY), 0, 100);
 	float aPoints[4];
-	// Origin active (e.g. past ~1e7 px / 312500 tiles): MapScreen in render-local space.
-	// Tile layers must then use HardEdgeStretch — absolute buffers are not in this space.
-	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
-	const float Cx = OriginShifted ? (Params.m_Center.x - Params.m_RenderOrigin.x) : Params.m_Center.x;
-	const float Cy = OriginShifted ? (Params.m_Center.y - Params.m_RenderOrigin.y) : Params.m_Center.y;
-	// Lock parallax when shifted so edge tiles stay under the tee.
-	const float ParX = OriginShifted ? 100.0f : m_pGroup->m_ParallaxX;
-	const float ParY = OriginShifted ? 100.0f : m_pGroup->m_ParallaxY;
-	const float OffX = OriginShifted ? 0.0f : m_pGroup->m_OffsetX;
-	const float OffY = OriginShifted ? 0.0f : m_pGroup->m_OffsetY;
-	const float ParZoom = OriginShifted ? 100.0f : (float)ParallaxZoom;
-	Graphics()->MapScreenToWorld(Cx, Cy, ParX, ParY, ParZoom,
-		OffX, OffY, Graphics()->ScreenAspect(), Params.m_Zoom, aPoints);
+	// Always absolute MapScreen (vanilla). Off-map uses unbuffered EXTEND which
+	// iterates only the visible screen cells and clamps sample indices to the edge.
+	Graphics()->MapScreenToWorld(Params.m_Center.x, Params.m_Center.y, m_pGroup->m_ParallaxX, m_pGroup->m_ParallaxY, (float)ParallaxZoom,
+		m_pGroup->m_OffsetX, m_pGroup->m_OffsetY, Graphics()->ScreenAspect(), Params.m_Zoom, aPoints);
 	Graphics()->MapScreen(aPoints[0], aPoints[1], aPoints[2], aPoints[3]);
 }
 
@@ -789,13 +780,15 @@ bool CRenderLayerTile::DoRender(const CRenderLayerParams &Params)
 
 void CRenderLayerTile::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	// Once GPU origin is on (~312500 tiles / 1e7 px), MapScreen is relative: absolute
-	// tile buffers no longer sit in view. Always edge-fill in local space (DDNet maps
-	// are never large enough to need true interior draws past that threshold).
-	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
-	if(OriginShifted && Params.m_RenderTileBorder)
+	// Off-map: GPU tile buffers only hold the map rectangle. Vanilla border EXTEND with
+	// huge Scale causes float stripes/void. Unbuffered RenderTilemap+EXTEND walks only
+	// the visible screen cells and clamps samples to the edge — works at 312500+ tiles.
+	if(Params.m_OutsideMap && Params.m_RenderTileBorder && m_pTiles)
 	{
-		RenderHardEdgeStretch(Color, Params);
+		Graphics()->BlendNone();
+		RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, TILERENDERFLAG_EXTEND | LAYERRENDERFLAG_OPAQUE);
+		Graphics()->BlendNormal();
+		RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, TILERENDERFLAG_EXTEND | LAYERRENDERFLAG_TRANSPARENT);
 		return;
 	}
 	RenderTileLayer(Color, Params);
@@ -803,12 +796,6 @@ void CRenderLayerTile::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, con
 
 void CRenderLayerTile::RenderTileLayerNoTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
-	if(OriginShifted && Params.m_RenderTileBorder)
-	{
-		RenderHardEdgeStretch(Color, Params);
-		return;
-	}
 	Graphics()->BlendNone();
 	RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, (Params.m_RenderTileBorder ? TILERENDERFLAG_EXTEND : 0) | LAYERRENDERFLAG_OPAQUE);
 	Graphics()->BlendNormal();
@@ -1721,14 +1708,18 @@ void CRenderLayerEntityGame::Init()
 
 void CRenderLayerEntityGame::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
-	// Far: skip absolute kill EXTEND (red float stripes); optional edge game markers only.
-	if(Params.m_RenderTileBorder && !OriginShifted)
+	// Far off-map: skip kill border stretch (red stripes). Overlay markers via EXTEND.
+	if(Params.m_RenderTileBorder && !Params.m_OutsideMap)
 		RenderKillTileBorder(Color.Multiply(GetDeathBorderColor()));
-	if(OriginShifted)
+	if(Params.m_OutsideMap)
 	{
-		if(Params.m_EntityOverlayVal)
-			RenderHardEdgeStretch(Color, Params);
+		if(Params.m_EntityOverlayVal && m_pTiles)
+		{
+			Graphics()->BlendNone();
+			RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, TILERENDERFLAG_EXTEND | LAYERRENDERFLAG_OPAQUE);
+			Graphics()->BlendNormal();
+			RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, TILERENDERFLAG_EXTEND | LAYERRENDERFLAG_TRANSPARENT);
+		}
 		return;
 	}
 	RenderTileLayer(Color, Params);
@@ -1736,11 +1727,15 @@ void CRenderLayerEntityGame::RenderTileLayerWithTileBuffer(const ColorRGBA &Colo
 
 void CRenderLayerEntityGame::RenderTileLayerNoTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
-	if(OriginShifted)
+	if(Params.m_OutsideMap)
 	{
-		if(Params.m_EntityOverlayVal)
-			RenderHardEdgeStretch(Color, Params);
+		if(Params.m_EntityOverlayVal && m_pTiles)
+		{
+			Graphics()->BlendNone();
+			RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, TILERENDERFLAG_EXTEND | LAYERRENDERFLAG_OPAQUE);
+			Graphics()->BlendNormal();
+			RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, TILERENDERFLAG_EXTEND | LAYERRENDERFLAG_TRANSPARENT);
+		}
 		return;
 	}
 
