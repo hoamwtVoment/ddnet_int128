@@ -800,11 +800,23 @@ void CGameClient::UpdatePositions()
 
 void CGameClient::UpdateRenderOrigin()
 {
-	// Float loses sub-pixel precision above ~2^24; use a camera-local origin so
-	// tees/nameplates/kill border stay stable far from the map.
+	// Float loses view width far from the origin (center±half rounds to center).
+	// Use a camera-local origin so tees, map edge fill, and HUD world space stay usable.
 	const vec2 C = m_Camera.m_Center;
-	constexpr float Threshold = 250000.0f; // ~7800 tiles
-	if(std::abs(C.x) > Threshold || std::abs(C.y) > Threshold)
+	constexpr float Threshold = 100000.0f; // ~3125 tiles
+	bool NeedOrigin = !std::isfinite(C.x) || !std::isfinite(C.y) ||
+			  std::abs(C.x) > Threshold || std::abs(C.y) > Threshold;
+
+	if(!NeedOrigin && Collision() && Collision()->GetWidth() > 0)
+	{
+		const float MapMaxX = (float)Collision()->GetWidth() * 32.0f;
+		const float MapMaxY = (float)Collision()->GetHeight() * 32.0f;
+		const float Margin = 201.0f * 32.0f;
+		if(C.x < -Margin || C.y < -Margin || C.x > MapMaxX + Margin || C.y > MapMaxY + Margin)
+			NeedOrigin = true;
+	}
+
+	if(NeedOrigin && std::isfinite(C.x) && std::isfinite(C.y))
 		m_RenderOrigin = vec2(std::floor(C.x + 0.5f), std::floor(C.y + 0.5f));
 	else
 		m_RenderOrigin = vec2(0.0f, 0.0f);

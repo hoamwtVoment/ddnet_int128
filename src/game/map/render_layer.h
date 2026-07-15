@@ -59,6 +59,16 @@ public:
 	bool m_DebugRenderQuadClips;
 	bool m_DebugRenderClusterClips;
 	bool m_DebugRenderTileClips;
+
+	// Far-lands / large-coordinate rendering (camera-local MapScreen).
+	// When m_FarLands is set, groups map with (Center - RenderOrigin) so float
+	// view width does not collapse, and tile layers fill the viewport by
+	// sampling edge-clamped map tiles (vanilla infinite border semantics).
+	vec2 m_RenderOrigin = vec2(0.0f, 0.0f);
+	bool m_FarLands = false;
+	// Approximate camera center in world tiles (for edge sampling).
+	double m_CamTileX = 0.0;
+	double m_CamTileY = 0.0;
 };
 
 class CRenderLayer : public CRenderComponent
@@ -218,6 +228,8 @@ protected:
 	void RenderTileLayer(const ColorRGBA &Color, const CRenderLayerParams &Params, CTileLayerVisuals *pTileLayerVisuals = nullptr);
 	void RenderTileBorder(const ColorRGBA &Color, int BorderX0, int BorderY0, int BorderX1, int BorderY1, CTileLayerVisuals *pTileLayerVisuals);
 	void RenderKillTileBorder(const ColorRGBA &Color, const CRenderLayerParams &Params);
+	// Fill current MapScreen with edge-clamped tiles (far lands / relative origin).
+	void RenderFarLandsEdgeFill(const ColorRGBA &Color, const CRenderLayerParams &Params);
 
 	std::optional<CRenderLayerTile::CTileLayerVisuals> m_VisualTiles;
 	CMapItemLayerTilemap *m_pLayerTilemap;

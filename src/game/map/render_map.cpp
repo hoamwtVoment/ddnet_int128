@@ -779,6 +779,153 @@ void CRenderMap::RenderTilemap(CTile *pTiles, int w, int h, float Scale, ColorRG
 	Graphics()->MapScreen(ScreenX0, ScreenY0, ScreenX1, ScreenY1);
 }
 
+void CRenderMap::RenderTilemapEdgeFill(CTile *pTiles, int w, int h, float Scale, ColorRGBA Color, int RenderFlags,
+	int StartX, int StartY, int EndX, int EndY, double WorldTileOfLocal0X, double WorldTileOfLocal0Y)
+{
+	if(!pTiles || w <= 0 || h <= 0 || EndX <= StartX || EndY <= StartY)
+		return;
+
+	float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
+	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
+
+	float TilePixelSize = 1024 / 32.0f;
+	float FinalTileSize = Scale / (ScreenX1 - ScreenX0) * Graphics()->ScreenWidth();
+	if(!std::isfinite(FinalTileSize) || FinalTileSize <= 0.0f)
+		FinalTileSize = Scale;
+	float FinalTilesetScale = FinalTileSize / TilePixelSize;
+	if(!std::isfinite(FinalTilesetScale) || FinalTilesetScale <= 0.0f)
+		FinalTilesetScale = 1.0f;
+
+	if(Graphics()->HasTextureArraysSupport())
+		Graphics()->QuadsTex3DBegin();
+	else
+		Graphics()->QuadsBegin();
+	Graphics()->SetColor(Color);
+	const bool ColorOpaque = Color.a > 254.0f / 255.0f;
+
+	float TexSize = 1024.0f;
+	float Frac = (1.25f / TexSize) * (1 / FinalTilesetScale);
+	float Nudge = (0.5f / TexSize) * (1 / FinalTilesetScale);
+
+	auto ClampSample = [](double WorldT, int Size) -> int {
+		if(Size <= 0)
+			return 0;
+		if(!std::isfinite(WorldT))
+			return Size - 1;
+		if(WorldT < 0.0)
+			return 0;
+		if(WorldT >= (double)Size)
+			return Size - 1;
+		return (int)WorldT;
+	};
+
+	for(int y = StartY; y < EndY; y++)
+	{
+		const int my = ClampSample(WorldTileOfLocal0Y + (double)y, h);
+		for(int x = StartX; x < EndX; x++)
+		{
+			const int mx = ClampSample(WorldTileOfLocal0X + (double)x, w);
+			const int c = mx + my * w;
+			unsigned char Index = pTiles[c].m_Index;
+			if(!Index)
+				continue;
+
+			unsigned char Flags = pTiles[c].m_Flags;
+			bool Render = false;
+			if(ColorOpaque && Flags & TILEFLAG_OPAQUE)
+			{
+				if(RenderFlags & LAYERRENDERFLAG_OPAQUE)
+					Render = true;
+			}
+			else
+			{
+				if(RenderFlags & LAYERRENDERFLAG_TRANSPARENT)
+					Render = true;
+			}
+			if(!Render)
+				continue;
+
+			int tx = Index % 16;
+			int ty = Index / 16;
+			int Px0 = tx * (1024 / 16);
+			int Py0 = ty * (1024 / 16);
+			int Px1 = Px0 + (1024 / 16) - 1;
+			int Py1 = Py0 + (1024 / 16) - 1;
+
+			float x0 = Nudge + Px0 / TexSize + Frac;
+			float y0 = Nudge + Py0 / TexSize + Frac;
+			float x1 = Nudge + Px1 / TexSize - Frac;
+			float y1 = Nudge + Py0 / TexSize + Frac;
+			float x2 = Nudge + Px1 / TexSize - Frac;
+			float y2 = Nudge + Py1 / TexSize - Frac;
+			float x3 = Nudge + Px0 / TexSize + Frac;
+			float y3 = Nudge + Py1 / TexSize - Frac;
+
+			if(Graphics()->HasTextureArraysSupport())
+			{
+				x0 = 0;
+				y0 = 0;
+				x1 = x0 + 1;
+				y1 = y0;
+				x2 = x0 + 1;
+				y2 = y0 + 1;
+				x3 = x0;
+				y3 = y0 + 1;
+			}
+
+			if(Flags & TILEFLAG_XFLIP)
+			{
+				float Tmp = x0;
+				x0 = x2;
+				x2 = Tmp;
+				Tmp = x1;
+				x1 = x3;
+				x3 = Tmp;
+			}
+			if(Flags & TILEFLAG_YFLIP)
+			{
+				float Tmp = y0;
+				y0 = y3;
+				y3 = Tmp;
+				Tmp = y1;
+				y1 = y2;
+				y2 = Tmp;
+			}
+			if(Flags & TILEFLAG_ROTATE)
+			{
+				float Tmp = x0;
+				x0 = x3;
+				x3 = x2;
+				x2 = x1;
+				x1 = Tmp;
+				Tmp = y0;
+				y0 = y3;
+				y3 = y2;
+				y2 = y1;
+				y1 = Tmp;
+			}
+
+			if(Graphics()->HasTextureArraysSupport())
+			{
+				Graphics()->QuadsSetSubsetFree(x0, y0, x1, y1, x2, y2, x3, y3, Index);
+				IGraphics::CQuadItem QuadItem(x * Scale, y * Scale, Scale, Scale);
+				Graphics()->QuadsTex3DDrawTL(&QuadItem, 1);
+			}
+			else
+			{
+				Graphics()->QuadsSetSubsetFree(x0, y0, x1, y1, x2, y2, x3, y3);
+				IGraphics::CQuadItem QuadItem(x * Scale, y * Scale, Scale, Scale);
+				Graphics()->QuadsDrawTL(&QuadItem, 1);
+			}
+		}
+	}
+
+	if(Graphics()->HasTextureArraysSupport())
+		Graphics()->QuadsTex3DEnd();
+	else
+		Graphics()->QuadsEnd();
+}
+
 void CRenderMap::RenderTeleOverlay(CTeleTile *pTele, int w, int h, float Scale, int OverlayRenderFlag, float Alpha)
 {
 	if(!(OverlayRenderFlag & OVERLAYRENDERFLAG_TEXT))
