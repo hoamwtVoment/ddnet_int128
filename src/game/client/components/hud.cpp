@@ -1429,6 +1429,17 @@ void CHud::UpdateMovementInformationTextContainer(STextContainerIndex &TextConta
 	TextRender()->RecreateTextContainer(TextContainer, &Cursor, aBuf);
 }
 
+void CHud::UpdateMovementInformationTextContainerStr(STextContainerIndex &TextContainer, float FontSize, const char *pValue, char *pPrev, size_t PrevSize)
+{
+	if(TextContainer.Valid() && pPrev[0] != '\0' && str_comp(pPrev, pValue) == 0)
+		return;
+	str_copy(pPrev, pValue, PrevSize);
+
+	CTextCursor Cursor;
+	Cursor.m_FontSize = FontSize;
+	TextRender()->RecreateTextContainer(TextContainer, &Cursor, pValue);
+}
+
 void CHud::RenderMovementInformationTextContainer(STextContainerIndex &TextContainer, const ColorRGBA &Color, float X, float Y)
 {
 	if(TextContainer.Valid())
@@ -1454,12 +1465,17 @@ CHud::CMovementInformation CHud::GetMovementInformation(int ClientId, int Conn) 
 		const CNetObj_Character *pCurChar = &GameClient()->m_Snap.m_aCharacters[ClientId].m_Cur;
 		const float IntraTick = Client()->IntraGameTick(Conn);
 
-		// Full int64 pixel pos (lo+hi). Display uses float tiles (mantissa limits at extreme coords).
-		const wvec2 PrevPos(wcoord(CharacterNetPosX(pPrevChar)), wcoord(CharacterNetPosY(pPrevChar)));
-		const wvec2 CurPos(wcoord(CharacterNetPosX(pCurChar)), wcoord(CharacterNetPosY(pCurChar)));
+		// Full i128 pixels from snap; show integer tiles as decimal strings (not float).
+		const wvec2 PrevPos(CharacterWorldPosX(pPrevChar), CharacterWorldPosY(pPrevChar));
+		const wvec2 CurPos(CharacterWorldPosX(pCurChar), CharacterWorldPosY(pCurChar));
 		const wvec2 Mixed = mix(PrevPos, CurPos, IntraTick);
-		// To make the player position relative to blocks we need to divide by the block size
-		Out.m_Pos = vec2(static_cast<float>(Mixed.x.to_double() / 32.0), static_cast<float>(Mixed.y.to_double() / 32.0));
+		const i128 TileX = Mixed.x.to_i128_pixels() / I128(WORLD_TILE_SIZE);
+		const i128 TileY = Mixed.y.to_i128_pixels() / I128(WORLD_TILE_SIZE);
+		i128_to_decimal_str(TileX, Out.m_aPosX, sizeof(Out.m_aPosX));
+		i128_to_decimal_str(TileY, Out.m_aPosY, sizeof(Out.m_aPosY));
+		Out.m_HasExactPos = true;
+		// Float copy only for freeview-style consumers; may lose precision far away
+		Out.m_Pos = vec2(static_cast<float>(i128_to_double(TileX)), static_cast<float>(i128_to_double(TileY)));
 
 		const vec2 Vel = mix(vec2(pPrevChar->m_VelX, pPrevChar->m_VelY), vec2(pCurChar->m_VelX, pCurChar->m_VelY), IntraTick);
 
@@ -1528,12 +1544,18 @@ void CHud::RenderMovementInformation()
 		y += MOVEMENT_INFORMATION_LINE_HEIGHT;
 
 		TextRender()->Text(LeftX, y, Fontsize, "X:", -1.0f);
-		UpdateMovementInformationTextContainer(m_aPlayerPositionContainers[0], Fontsize, Info.m_Pos.x, m_aPlayerPrevPosition[0]);
+		if(Info.m_HasExactPos)
+			UpdateMovementInformationTextContainerStr(m_aPlayerPositionContainers[0], Fontsize, Info.m_aPosX, m_aPlayerPrevPosStr[0], sizeof(m_aPlayerPrevPosStr[0]));
+		else
+			UpdateMovementInformationTextContainer(m_aPlayerPositionContainers[0], Fontsize, Info.m_Pos.x, m_aPlayerPrevPosition[0]);
 		RenderMovementInformationTextContainer(m_aPlayerPositionContainers[0], TextRender()->DefaultTextColor(), RightX, y);
 		y += MOVEMENT_INFORMATION_LINE_HEIGHT;
 
 		TextRender()->Text(LeftX, y, Fontsize, "Y:", -1.0f);
-		UpdateMovementInformationTextContainer(m_aPlayerPositionContainers[1], Fontsize, Info.m_Pos.y, m_aPlayerPrevPosition[1]);
+		if(Info.m_HasExactPos)
+			UpdateMovementInformationTextContainerStr(m_aPlayerPositionContainers[1], Fontsize, Info.m_aPosY, m_aPlayerPrevPosStr[1], sizeof(m_aPlayerPrevPosStr[1]));
+		else
+			UpdateMovementInformationTextContainer(m_aPlayerPositionContainers[1], Fontsize, Info.m_Pos.y, m_aPlayerPrevPosition[1]);
 		RenderMovementInformationTextContainer(m_aPlayerPositionContainers[1], TextRender()->DefaultTextColor(), RightX, y);
 		y += MOVEMENT_INFORMATION_LINE_HEIGHT;
 	}

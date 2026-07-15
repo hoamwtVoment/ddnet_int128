@@ -169,11 +169,19 @@ Objects = [
 		NetIntAny("m_HookY"),
 		NetIntAny("m_HookDx"),
 		NetIntAny("m_HookDy"),
-		# High 32 bits of world pixel positions (int64 = (hi<<32)|lo).
+		# World pixel i128: four LE int32 limbs (see 0.6 CharacterCore).
 		NetIntAny("m_XHi"),
 		NetIntAny("m_YHi"),
 		NetIntAny("m_HookXHi"),
 		NetIntAny("m_HookYHi"),
+		NetIntAny("m_X2"),
+		NetIntAny("m_X3"),
+		NetIntAny("m_Y2"),
+		NetIntAny("m_Y3"),
+		NetIntAny("m_HookX2"),
+		NetIntAny("m_HookX3"),
+		NetIntAny("m_HookY2"),
+		NetIntAny("m_HookY3"),
 	]),
 
 	NetObject("Character:CharacterCore", [

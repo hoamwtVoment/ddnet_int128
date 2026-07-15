@@ -492,7 +492,7 @@ void CPlayers::RenderHook(
 	if(in_range(ClientId, MAX_CLIENTS - 1))
 		Position = GameClient()->ToRenderSpace(GameClient()->m_aClients[ClientId].m_RenderPos);
 	else
-		Position = GameClient()->ToRenderSpace(mix(vec2((float)CharacterNetPosX(&Prev), (float)CharacterNetPosY(&Prev)), vec2((float)CharacterNetPosX(&Player), (float)CharacterNetPosY(&Player)), Intra));
+		Position = GameClient()->ToRenderSpace(mix(vec2((float)i128_to_double(CharacterNetPosX(&Prev)), (float)i128_to_double(CharacterNetPosY(&Prev))), vec2((float)i128_to_double(CharacterNetPosX(&Player)), (float)i128_to_double(CharacterNetPosY(&Player))), Intra));
 
 	// draw hook
 	Graphics()->SetColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -505,7 +505,7 @@ void CPlayers::RenderHook(
 	if(in_range(pPlayerChar->m_HookedPlayer, MAX_CLIENTS - 1))
 		HookPos = GameClient()->ToRenderSpace(GameClient()->m_aClients[pPlayerChar->m_HookedPlayer].m_RenderPos);
 	else
-		HookPos = GameClient()->ToRenderSpace(mix(vec2((float)CharacterNetHookX(&Prev), (float)CharacterNetHookY(&Prev)), vec2((float)CharacterNetHookX(&Player), (float)CharacterNetHookY(&Player)), Intra));
+		HookPos = GameClient()->ToRenderSpace(mix(vec2((float)i128_to_double(CharacterNetHookX(&Prev)), (float)i128_to_double(CharacterNetHookY(&Prev))), vec2((float)i128_to_double(CharacterNetHookX(&Player)), (float)i128_to_double(CharacterNetHookY(&Player))), Intra));
 
 	float d = distance(Pos, HookPos);
 	vec2 Dir = normalize(Pos - HookPos);
@@ -593,7 +593,7 @@ void CPlayers::RenderPlayer(
 	if(in_range(ClientId, MAX_CLIENTS - 1))
 		Position = GameClient()->ToRenderSpace(GameClient()->m_aClients[ClientId].m_RenderPos);
 	else
-		Position = GameClient()->ToRenderSpace(mix(vec2((float)CharacterNetPosX(&Prev), (float)CharacterNetPosY(&Prev)), vec2((float)CharacterNetPosX(&Player), (float)CharacterNetPosY(&Player)), Intra));
+		Position = GameClient()->ToRenderSpace(mix(vec2((float)i128_to_double(CharacterNetPosX(&Prev)), (float)i128_to_double(CharacterNetPosY(&Prev))), vec2((float)i128_to_double(CharacterNetPosX(&Player)), (float)i128_to_double(CharacterNetPosY(&Player))), Intra));
 	vec2 Vel = mix(vec2(Prev.m_VelX / 256.0f, Prev.m_VelY / 256.0f), vec2(Player.m_VelX / 256.0f, Player.m_VelY / 256.0f), Intra);
 
 	GameClient()->m_Flow.Add(Position, Vel * 100.0f, 10.0f);

@@ -336,6 +336,49 @@ inline i128 i128_from_double(double v)
 
 #endif // soft i128
 
+// --- bit packing / decimal helpers (native + soft) ---
+
+inline void i128_to_u64_pair(i128 V, uint64_t *pLo, uint64_t *pHi)
+{
+#if defined(DDNET_HAS_NATIVE_INT128)
+	const u128 U = static_cast<u128>(V);
+	*pLo = static_cast<uint64_t>(U);
+	*pHi = static_cast<uint64_t>(U >> 64);
+#else
+	*pLo = V.lo;
+	*pHi = static_cast<uint64_t>(V.hi);
+#endif
+}
+
+inline i128 i128_from_u64_pair(uint64_t Lo, uint64_t Hi)
+{
+#if defined(DDNET_HAS_NATIVE_INT128)
+	return static_cast<i128>((static_cast<u128>(Hi) << 64) | static_cast<u128>(Lo));
+#else
+	return i128{Lo, static_cast<int64_t>(Hi)};
+#endif
+}
+
+// Pack signed i128 as four little-endian int32 limbs (network / snap fields).
+inline void i128_to_i32x4(i128 V, int *p0, int *p1, int *p2, int *p3)
+{
+	uint64_t Lo = 0, Hi = 0;
+	i128_to_u64_pair(V, &Lo, &Hi);
+	*p0 = static_cast<int>(static_cast<uint32_t>(Lo));
+	*p1 = static_cast<int>(static_cast<uint32_t>(Lo >> 32));
+	*p2 = static_cast<int>(static_cast<uint32_t>(Hi));
+	*p3 = static_cast<int>(static_cast<uint32_t>(Hi >> 32));
+}
+
+inline i128 i128_from_i32x4(int A0, int A1, int A2, int A3)
+{
+	const uint64_t Lo = static_cast<uint64_t>(static_cast<uint32_t>(A0)) |
+			    (static_cast<uint64_t>(static_cast<uint32_t>(A1)) << 32);
+	const uint64_t Hi = static_cast<uint64_t>(static_cast<uint32_t>(A2)) |
+			    (static_cast<uint64_t>(static_cast<uint32_t>(A3)) << 32);
+	return i128_from_u64_pair(Lo, Hi);
+}
+
 // --- decimal string helpers (native + soft) ---
 
 // Parse optional sign + digits (integer only). Returns false on empty/invalid/overflow-ish junk.

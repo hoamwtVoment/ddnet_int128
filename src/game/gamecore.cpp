@@ -602,15 +602,15 @@ void CCharacterCore::Move()
 
 void CCharacterCore::Write(CNetObj_CharacterCore *pObjCore) const
 {
-	NetPackWorldPos(round_to_int64(m_Pos.x), &pObjCore->m_X, &pObjCore->m_XHi);
-	NetPackWorldPos(round_to_int64(m_Pos.y), &pObjCore->m_Y, &pObjCore->m_YHi);
+	NetPackWorldPosI128(m_Pos.x.round_to_i128_pixels(), &pObjCore->m_X, &pObjCore->m_XHi, &pObjCore->m_X2, &pObjCore->m_X3);
+	NetPackWorldPosI128(m_Pos.y.round_to_i128_pixels(), &pObjCore->m_Y, &pObjCore->m_YHi, &pObjCore->m_Y2, &pObjCore->m_Y3);
 
 	pObjCore->m_VelX = round_to_int(m_Vel.x * 256.0f);
 	pObjCore->m_VelY = round_to_int(m_Vel.y * 256.0f);
 	pObjCore->m_HookState = m_HookState;
 	pObjCore->m_HookTick = m_HookTick;
-	NetPackWorldPos(round_to_int64(m_HookPos.x), &pObjCore->m_HookX, &pObjCore->m_HookXHi);
-	NetPackWorldPos(round_to_int64(m_HookPos.y), &pObjCore->m_HookY, &pObjCore->m_HookYHi);
+	NetPackWorldPosI128(m_HookPos.x.round_to_i128_pixels(), &pObjCore->m_HookX, &pObjCore->m_HookXHi, &pObjCore->m_HookX2, &pObjCore->m_HookX3);
+	NetPackWorldPosI128(m_HookPos.y.round_to_i128_pixels(), &pObjCore->m_HookY, &pObjCore->m_HookYHi, &pObjCore->m_HookY2, &pObjCore->m_HookY3);
 	pObjCore->m_HookDx = round_to_int(m_HookDir.x * 256.0f);
 	pObjCore->m_HookDy = round_to_int(m_HookDir.y * 256.0f);
 	pObjCore->m_HookedPlayer = m_HookedPlayer;
@@ -621,14 +621,14 @@ void CCharacterCore::Write(CNetObj_CharacterCore *pObjCore) const
 
 void CCharacterCore::Read(const CNetObj_CharacterCore *pObjCore)
 {
-	m_Pos.x = wcoord(CharacterNetPosX(pObjCore));
-	m_Pos.y = wcoord(CharacterNetPosY(pObjCore));
+	m_Pos.x = CharacterWorldPosX(pObjCore);
+	m_Pos.y = CharacterWorldPosY(pObjCore);
 	m_Vel.x = pObjCore->m_VelX / 256.0f;
 	m_Vel.y = pObjCore->m_VelY / 256.0f;
 	m_HookState = pObjCore->m_HookState;
 	m_HookTick = pObjCore->m_HookTick;
-	m_HookPos.x = wcoord(CharacterNetHookX(pObjCore));
-	m_HookPos.y = wcoord(CharacterNetHookY(pObjCore));
+	m_HookPos.x = wcoord::FromIntegerPixels(CharacterNetHookX(pObjCore));
+	m_HookPos.y = wcoord::FromIntegerPixels(CharacterNetHookY(pObjCore));
 	m_HookDir.x = pObjCore->m_HookDx / 256.0f;
 	m_HookDir.y = pObjCore->m_HookDy / 256.0f;
 	SetHookedPlayer(pObjCore->m_HookedPlayer);

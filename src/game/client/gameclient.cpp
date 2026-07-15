@@ -762,8 +762,8 @@ void CGameClient::UpdatePositions()
 	else if(m_Snap.m_pLocalCharacter && m_Snap.m_pLocalPrevCharacter)
 	{
 		m_LocalCharacterPos = mix(
-			vec2((float)CharacterNetPosX(m_Snap.m_pLocalPrevCharacter), (float)CharacterNetPosY(m_Snap.m_pLocalPrevCharacter)),
-			vec2((float)CharacterNetPosX(m_Snap.m_pLocalCharacter), (float)CharacterNetPosY(m_Snap.m_pLocalCharacter)), Client()->IntraGameTick(g_Config.m_ClDummy));
+			vec2((float)i128_to_double(CharacterNetPosX(m_Snap.m_pLocalPrevCharacter)), (float)i128_to_double(CharacterNetPosY(m_Snap.m_pLocalPrevCharacter))),
+			vec2((float)i128_to_double(CharacterNetPosX(m_Snap.m_pLocalCharacter)), (float)i128_to_double(CharacterNetPosY(m_Snap.m_pLocalCharacter))), Client()->IntraGameTick(g_Config.m_ClDummy));
 	}
 
 	// spectator position
@@ -2174,7 +2174,7 @@ void CGameClient::OnNewSnapshot(bool DummySwapped)
 			{
 				m_Snap.m_pLocalCharacter = &pChr->m_Cur;
 				m_Snap.m_pLocalPrevCharacter = &pChr->m_Prev;
-				m_LocalCharacterPos = vec2((float)CharacterNetPosX(m_Snap.m_pLocalCharacter), (float)CharacterNetPosY(m_Snap.m_pLocalCharacter));
+				m_LocalCharacterPos = vec2((float)i128_to_double(CharacterNetPosX(m_Snap.m_pLocalCharacter)), (float)i128_to_double(CharacterNetPosY(m_Snap.m_pLocalCharacter)));
 			}
 		}
 		else if(Client()->SnapFindItem(IClient::SNAP_PREV, NETOBJTYPE_CHARACTER, m_Snap.m_LocalClientId))
@@ -3828,9 +3828,10 @@ void CGameClient::UpdateRenderedCharacters()
 		m_aClients[i].m_IsPredicted = false;
 		m_aClients[i].m_IsPredictedLocal = false;
 		// Reconstruct int64 world pixels from lo/hi net fields (float only for GPU)
+		// Float is only for local render offsets; full i128 lives in snap + prediction core.
 		vec2 UnpredPos = mix(
-			vec2((float)CharacterNetPosX(&m_Snap.m_aCharacters[i].m_Prev), (float)CharacterNetPosY(&m_Snap.m_aCharacters[i].m_Prev)),
-			vec2((float)CharacterNetPosX(&m_Snap.m_aCharacters[i].m_Cur), (float)CharacterNetPosY(&m_Snap.m_aCharacters[i].m_Cur)),
+			vec2((float)i128_to_double(CharacterNetPosX(&m_Snap.m_aCharacters[i].m_Prev)), (float)i128_to_double(CharacterNetPosY(&m_Snap.m_aCharacters[i].m_Prev))),
+			vec2((float)i128_to_double(CharacterNetPosX(&m_Snap.m_aCharacters[i].m_Cur)), (float)i128_to_double(CharacterNetPosY(&m_Snap.m_aCharacters[i].m_Cur))),
 			Client()->IntraGameTick(g_Config.m_ClDummy));
 		vec2 Pos = UnpredPos;
 
@@ -3843,8 +3844,8 @@ void CGameClient::UpdateRenderedCharacters()
 			m_aClients[i].m_IsPredicted = true;
 
 			Pos = mix(
-				vec2((float)CharacterNetPosX(&m_aClients[i].m_RenderPrev), (float)CharacterNetPosY(&m_aClients[i].m_RenderPrev)),
-				vec2((float)CharacterNetPosX(&m_aClients[i].m_RenderCur), (float)CharacterNetPosY(&m_aClients[i].m_RenderCur)),
+				vec2((float)i128_to_double(CharacterNetPosX(&m_aClients[i].m_RenderPrev)), (float)i128_to_double(CharacterNetPosY(&m_aClients[i].m_RenderPrev))),
+				vec2((float)i128_to_double(CharacterNetPosX(&m_aClients[i].m_RenderCur)), (float)i128_to_double(CharacterNetPosY(&m_aClients[i].m_RenderCur))),
 				m_aClients[i].m_IsPredicted ? Client()->PredIntraGameTick(g_Config.m_ClDummy) : Client()->IntraGameTick(g_Config.m_ClDummy));
 
 			if(i == m_Snap.m_LocalClientId || (PredictDummy() && i == m_aLocalIds[!g_Config.m_ClDummy]))

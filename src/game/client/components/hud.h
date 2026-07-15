@@ -83,15 +83,21 @@ class CHud : public CComponent
 	void RenderMovementInformation();
 
 	void UpdateMovementInformationTextContainer(STextContainerIndex &TextContainer, float FontSize, float Value, float &PrevValue);
+	void UpdateMovementInformationTextContainerStr(STextContainerIndex &TextContainer, float FontSize, const char *pValue, char *pPrev, size_t PrevSize);
 	void RenderMovementInformationTextContainer(STextContainerIndex &TextContainer, const ColorRGBA &Color, float X, float Y);
 
 	class CMovementInformation
 	{
 	public:
-		vec2 m_Pos;
+		// Full tile indices as decimal when m_HasExactPos (float cannot show far coords)
+		char m_aPosX[64] = {0};
+		char m_aPosY[64] = {0};
+		bool m_HasExactPos = false;
+		vec2 m_Pos = vec2(0.0f, 0.0f); // freeview / small coords fallback
 		vec2 m_Speed;
 		float m_Angle = 0.0f;
 	};
+	char m_aPlayerPrevPosStr[2][64] = {{0}, {0}};
 	class CMovementInformation GetMovementInformation(int ClientId, int Conn) const;
 
 	void RenderGameTimer();

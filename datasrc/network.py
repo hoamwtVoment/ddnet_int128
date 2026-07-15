@@ -202,11 +202,20 @@ Objects = [
 		NetIntAny("m_HookY"),
 		NetIntAny("m_HookDx"),
 		NetIntAny("m_HookDy"),
-		# High 32 bits of world pixel positions (int64 = (hi<<32)|lo). Default 0 = legacy int32 range.
+		# World pixel positions as signed i128, four little-endian int32 limbs:
+		# m_X + (m_XHi<<32) + (m_X2<<64) + (m_X3<<96).
 		NetIntAny("m_XHi"),
 		NetIntAny("m_YHi"),
 		NetIntAny("m_HookXHi"),
 		NetIntAny("m_HookYHi"),
+		NetIntAny("m_X2"),
+		NetIntAny("m_X3"),
+		NetIntAny("m_Y2"),
+		NetIntAny("m_Y3"),
+		NetIntAny("m_HookX2"),
+		NetIntAny("m_HookX3"),
+		NetIntAny("m_HookY2"),
+		NetIntAny("m_HookY3"),
 	]),
 
 	NetObject("Character:CharacterCore", [

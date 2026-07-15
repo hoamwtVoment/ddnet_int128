@@ -20,36 +20,45 @@
 class CCollision;
 class CTeamsCore;
 
-// CharacterCore world positions are transmitted as int64 split into lo/hi 32-bit fields.
-inline void NetPackWorldPos(int64_t Pixels, int *pLo, int *pHi)
+// CharacterCore world positions: full i128 pixels as four LE int32 limbs.
+inline void NetPackWorldPosI128(i128 Pixels, int *p0, int *p1, int *p2, int *p3)
 {
-	*pLo = static_cast<int>(static_cast<uint32_t>(Pixels));
-	*pHi = static_cast<int>(Pixels >> 32);
+	i128_to_i32x4(Pixels, p0, p1, p2, p3);
 }
 
-inline int64_t NetUnpackWorldPos(int Lo, int Hi)
+inline i128 NetUnpackWorldPosI128(int A0, int A1, int A2, int A3)
 {
-	return static_cast<int64_t>(static_cast<uint32_t>(Lo)) | (static_cast<int64_t>(Hi) << 32);
+	return i128_from_i32x4(A0, A1, A2, A3);
 }
 
-inline int64_t CharacterNetPosX(const CNetObj_CharacterCore *pCore)
+inline i128 CharacterNetPosX(const CNetObj_CharacterCore *pCore)
 {
-	return NetUnpackWorldPos(pCore->m_X, pCore->m_XHi);
+	return NetUnpackWorldPosI128(pCore->m_X, pCore->m_XHi, pCore->m_X2, pCore->m_X3);
 }
 
-inline int64_t CharacterNetPosY(const CNetObj_CharacterCore *pCore)
+inline i128 CharacterNetPosY(const CNetObj_CharacterCore *pCore)
 {
-	return NetUnpackWorldPos(pCore->m_Y, pCore->m_YHi);
+	return NetUnpackWorldPosI128(pCore->m_Y, pCore->m_YHi, pCore->m_Y2, pCore->m_Y3);
 }
 
-inline int64_t CharacterNetHookX(const CNetObj_CharacterCore *pCore)
+inline i128 CharacterNetHookX(const CNetObj_CharacterCore *pCore)
 {
-	return NetUnpackWorldPos(pCore->m_HookX, pCore->m_HookXHi);
+	return NetUnpackWorldPosI128(pCore->m_HookX, pCore->m_HookXHi, pCore->m_HookX2, pCore->m_HookX3);
 }
 
-inline int64_t CharacterNetHookY(const CNetObj_CharacterCore *pCore)
+inline i128 CharacterNetHookY(const CNetObj_CharacterCore *pCore)
 {
-	return NetUnpackWorldPos(pCore->m_HookY, pCore->m_HookYHi);
+	return NetUnpackWorldPosI128(pCore->m_HookY, pCore->m_HookYHi, pCore->m_HookY2, pCore->m_HookY3);
+}
+
+inline wcoord CharacterWorldPosX(const CNetObj_CharacterCore *pCore)
+{
+	return wcoord::FromIntegerPixels(CharacterNetPosX(pCore));
+}
+
+inline wcoord CharacterWorldPosY(const CNetObj_CharacterCore *pCore)
+{
+	return wcoord::FromIntegerPixels(CharacterNetPosY(pCore));
 }
 
 class CTuneParam
