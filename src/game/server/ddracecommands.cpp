@@ -3,6 +3,7 @@
 
 #include <base/io.h>
 #include <base/log.h>
+#include <base/str.h>
 #include <base/time.h>
 
 #include <engine/antibot.h>
@@ -489,6 +490,162 @@ void CGameContext::ConTeleport(IConsole::IResult *pResult, void *pUserData)
 		pChr->Unfreeze();
 		pChr->SetVelocity(wvec2(0, 0));
 	}
+}
+
+void CGameContext::ConHoTp(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	const bool FromServerConsole = pResult->m_ClientId == IConsole::CLIENT_ID_UNSPECIFIED;
+	if(!FromServerConsole && !CheckClientId(pResult->m_ClientId))
+		return;
+
+	if(FromServerConsole && pResult->NumArguments() < 3)
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", "server console usage: ho_tp [x] [y] [id] [reset]");
+		return;
+	}
+
+	const int ClientId = pResult->NumArguments() >= 3 ? pResult->GetInteger(2) : pResult->m_ClientId;
+	const bool ResetRace = pResult->NumArguments() >= 4 ? pResult->GetInteger(3) != 0 : false;
+	const int AuthLevel = FromServerConsole ? AUTHED_ADMIN : pSelf->Server()->GetAuthedState(pResult->m_ClientId);
+	CPlayer *pPlayer = FromServerConsole ? nullptr : pSelf->m_apPlayers[pResult->m_ClientId];
+
+	if(pResult->NumArguments() == 1 || (pResult->NumArguments() == 0 && !pPlayer))
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", "usage: ho_tp [x] [y] [id] [reset]");
+		return;
+	}
+
+	if(!CheckClientId(ClientId))
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", "invalid client id");
+		return;
+	}
+
+	if(!FromServerConsole && ClientId != pResult->m_ClientId && AuthLevel < g_Config.m_SvTeleOthersAuthLevel)
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", "you aren't allowed to tele others");
+		return;
+	}
+
+	CCharacter *pChr = pSelf->GetPlayerChar(ClientId);
+	if(!pChr)
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", "player has no active character");
+		return;
+	}
+
+	wvec2 Pos;
+	if(pResult->NumArguments() >= 2)
+	{
+		float TileX = 0.0f;
+		float TileY = 0.0f;
+		if(!str_tofloat(pResult->GetString(0), &TileX) || !str_tofloat(pResult->GetString(1), &TileY))
+		{
+			pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", "invalid tile coordinate");
+			return;
+		}
+		Pos = wvec2(TileX * 32.0f, TileY * 32.0f);
+	}
+	else if(pPlayer)
+	{
+		Pos = pPlayer->m_ViewPos;
+		if(pResult->NumArguments() == 0 && ClientId == pResult->m_ClientId && !pPlayer->IsPaused() && pChr->IsAlive())
+		{
+			wvec2 Target = wvec2(pChr->Core()->m_Input.m_TargetX, pChr->Core()->m_Input.m_TargetY);
+			Pos = pPlayer->m_CameraInfo.ConvertTargetToWorld(pChr->GetPos(), Target);
+		}
+	}
+	else
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", "usage: ho_tp [x] [y] [id] [reset]");
+		return;
+	}
+
+	if(ResetRace)
+	{
+		pSelf->Teleport(pChr, Pos);
+		pChr->ResetJumps();
+		pChr->Unfreeze();
+		pChr->SetVelocity(wvec2(0, 0));
+	}
+	else
+	{
+		pChr->SetPosition(Pos);
+		pChr->m_Pos = Pos;
+		pChr->m_PrevPos = Pos;
+	}
+
+	char aBuf[128];
+	str_format(aBuf, sizeof(aBuf), "teleported client %d to tile %.2f %.2f%s", ClientId, Pos.x.to_float() / 32.0f, Pos.y.to_float() / 32.0f, ResetRace ? " and reset race" : "");
+	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", aBuf);
+}
+
+void CGameContext::ConHoSpeed(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	const int ClientId = pResult->GetInteger(0);
+	const char *pAxis = pResult->GetString(1);
+
+	if(!CheckClientId(ClientId))
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_speed", "invalid client id");
+		return;
+	}
+
+	CCharacter *pChr = pSelf->GetPlayerChar(ClientId);
+	if(!pChr)
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_speed", "player has no active character");
+		return;
+	}
+
+	const bool IsX = str_comp_nocase(pAxis, "x") == 0;
+	const bool IsY = str_comp_nocase(pAxis, "y") == 0;
+	if(!IsX && !IsY)
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_speed", "usage: ho_speed [id] [x|y] [value]");
+		return;
+	}
+
+	wvec2 Vel = pChr->Core()->m_Vel;
+	if(pResult->NumArguments() == 2)
+	{
+		char aBuf[128];
+		str_format(aBuf, sizeof(aBuf), "client %d speed %s = %.2f", ClientId, IsX ? "x" : "y", IsX ? Vel.x.to_float() : Vel.y.to_float());
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_speed", aBuf);
+		return;
+	}
+
+	if(IsX)
+		Vel.x = pResult->GetFloat(2);
+	else
+		Vel.y = pResult->GetFloat(2);
+
+	pChr->SetVelocity(Vel);
+
+	char aBuf[128];
+	str_format(aBuf, sizeof(aBuf), "client %d speed x=%.2f y=%.2f", ClientId, pChr->Core()->m_Vel.x.to_float(), pChr->Core()->m_Vel.y.to_float());
+	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_speed", aBuf);
+}
+
+void CGameContext::ConHoSpeedLimit(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+
+	if(pResult->NumArguments() == 0)
+	{
+		char aBuf[64];
+		str_format(aBuf, sizeof(aBuf), "ho_speedlimit is %d", pSelf->m_World.m_Core.m_HoSpeedLimit ? 1 : 0);
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_speedlimit", aBuf);
+		return;
+	}
+
+	pSelf->m_World.m_Core.m_HoSpeedLimit = pResult->GetInteger(0) != 0;
+
+	char aBuf[64];
+	str_format(aBuf, sizeof(aBuf), "ho_speedlimit %d", pSelf->m_World.m_Core.m_HoSpeedLimit ? 1 : 0);
+	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_speedlimit", aBuf);
 }
 
 void CGameContext::ConKill(IConsole::IResult *pResult, void *pUserData)
