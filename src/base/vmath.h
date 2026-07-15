@@ -15,18 +15,21 @@ template<Numeric T>
 class vector2_base
 {
 public:
-	union
-	{
-		T x, u;
-	};
-	union
-	{
-		T y, v;
-	};
+	// No unions: T may be non-trivial (e.g. wcoord / i128 fixed-point).
+	// Texture UV code uses dedicated GL_STexCoord / STexCoord types with u,v fields.
+	T x, y;
 
 	constexpr vector2_base() = default;
 	constexpr vector2_base(T nx, T ny) :
 		x(nx), y(ny)
+	{
+	}
+
+	// Convert between world (wcoord) and screen/render (float) vectors.
+	template<Numeric U>
+		requires(!std::same_as<T, U>)
+	vector2_base(const vector2_base<U> &Other) :
+		x(static_cast<T>(Other.x)), y(static_cast<T>(Other.y))
 	{
 	}
 
@@ -80,7 +83,44 @@ public:
 
 	constexpr T &operator[](const int index) { return index ? y : x; }
 	constexpr const T &operator[](const int index) const { return index ? y : x; }
+
+	// Scale by float when T is not float (e.g. wcoord) — avoids dual user-defined conversion on scalars
+	template<typename U = T>
+	vector2_base operator*(float rhs) const
+		requires(!std::floating_point<U>)
+	{
+		return vector2_base(x * rhs, y * rhs);
+	}
+	template<typename U = T>
+	vector2_base operator/(float rhs) const
+		requires(!std::floating_point<U>)
+	{
+		return vector2_base(x / rhs, y / rhs);
+	}
+	template<typename U = T>
+	vector2_base &operator*=(float rhs)
+		requires(!std::floating_point<U>)
+	{
+		x *= rhs;
+		y *= rhs;
+		return *this;
+	}
+	template<typename U = T>
+	vector2_base &operator/=(float rhs)
+		requires(!std::floating_point<U>)
+	{
+		x /= rhs;
+		y /= rhs;
+		return *this;
+	}
 };
+
+template<Numeric T>
+	requires(!std::floating_point<T>)
+inline vector2_base<T> operator*(float lhs, const vector2_base<T> &vec)
+{
+	return vec * lhs;
+}
 
 template<Numeric T>
 constexpr vector2_base<T> rotate(const vector2_base<T> &a, float angle)
@@ -89,18 +129,6 @@ constexpr vector2_base<T> rotate(const vector2_base<T> &a, float angle)
 	float s = std::sin(angle);
 	float c = std::cos(angle);
 	return vector2_base<T>(static_cast<T>(c * a.x - s * a.y), static_cast<T>(s * a.x + c * a.y));
-}
-
-template<Numeric T>
-inline T distance(const vector2_base<T> a, const vector2_base<T> &b)
-{
-	return length(a - b);
-}
-
-template<Numeric T>
-inline T distance_squared(const vector2_base<T> a, const vector2_base<T> &b)
-{
-	return length_squared(a - b);
 }
 
 template<Numeric T>
@@ -121,9 +149,54 @@ inline float length(const vector2_base<T> &a)
 	return std::sqrt(static_cast<float>(dot(a, a)));
 }
 
+inline float length(const vector2_base<wcoord> &a)
+{
+	const double dx = a.x.to_double();
+	const double dy = a.y.to_double();
+	return static_cast<float>(std::sqrt(dx * dx + dy * dy));
+}
+
 constexpr float length_squared(const vector2_base<float> &a)
 {
 	return dot(a, a);
+}
+
+inline float length_squared(const vector2_base<wcoord> &a)
+{
+	const double dx = a.x.to_double();
+	const double dy = a.y.to_double();
+	return static_cast<float>(dx * dx + dy * dy);
+}
+
+template<Numeric T>
+inline auto distance(const vector2_base<T> a, const vector2_base<T> &b)
+{
+	return length(a - b);
+}
+
+// Mixed world/render vectors: compute in double (common for m_Pos vs camera float)
+template<Numeric T, Numeric U>
+	requires(!std::same_as<T, U>)
+inline float distance(const vector2_base<T> &a, const vector2_base<U> &b)
+{
+	const double dx = static_cast<double>(a.x) - static_cast<double>(b.x);
+	const double dy = static_cast<double>(a.y) - static_cast<double>(b.y);
+	return static_cast<float>(std::sqrt(dx * dx + dy * dy));
+}
+
+template<Numeric T>
+inline auto distance_squared(const vector2_base<T> a, const vector2_base<T> &b)
+{
+	return length_squared(a - b);
+}
+
+template<Numeric T, Numeric U>
+	requires(!std::same_as<T, U>)
+inline float distance_squared(const vector2_base<T> &a, const vector2_base<U> &b)
+{
+	const double dx = static_cast<double>(a.x) - static_cast<double>(b.x);
+	const double dy = static_cast<double>(a.y) - static_cast<double>(b.y);
+	return static_cast<float>(dx * dx + dy * dy);
 }
 
 constexpr float angle(const vector2_base<float> &a)
@@ -138,12 +211,33 @@ constexpr float angle(const vector2_base<float> &a)
 	return result;
 }
 
+inline float angle(const vector2_base<wcoord> &a)
+{
+	const float ax = a.x.to_float();
+	const float ay = a.y.to_float();
+	if(ax == 0 && ay == 0)
+		return 0.0f;
+	else if(ax == 0)
+		return ay < 0 ? -pi / 2 : pi / 2;
+	float result = std::atan(ay / ax);
+	if(ax < 0)
+		result = result + pi;
+	return result;
+}
+
 template<Numeric T>
 constexpr vector2_base<T> normalize_pre_length(const vector2_base<T> &v, T len)
 {
 	if(len == 0)
 		return vector2_base<T>();
 	return vector2_base<T>(v.x / len, v.y / len);
+}
+
+inline vector2_base<wcoord> normalize_pre_length(const vector2_base<wcoord> &v, float len)
+{
+	if(len == 0.0f)
+		return vector2_base<wcoord>();
+	return vector2_base<wcoord>(v.x / len, v.y / len);
 }
 
 inline vector2_base<float> normalize(const vector2_base<float> &v)
@@ -155,9 +249,23 @@ inline vector2_base<float> normalize(const vector2_base<float> &v)
 	return vector2_base<float>(v.x * l, v.y * l);
 }
 
+inline vector2_base<wcoord> normalize(const vector2_base<wcoord> &v)
+{
+	float divisor = length(v);
+	if(divisor == 0.0f)
+		return vector2_base<wcoord>(0, 0);
+	float l = 1.0f / divisor;
+	return vector2_base<wcoord>(v.x * l, v.y * l);
+}
+
 inline vector2_base<float> direction(float angle)
 {
 	return vector2_base<float>(std::cos(angle), std::sin(angle));
+}
+
+inline vector2_base<wcoord> direction_w(float angle)
+{
+	return vector2_base<wcoord>(std::cos(angle), std::sin(angle));
 }
 
 inline vector2_base<float> random_direction()
@@ -165,9 +273,25 @@ inline vector2_base<float> random_direction()
 	return direction(random_angle());
 }
 
+// Screen/render coordinates (float). World game coordinates use wvec2.
 typedef vector2_base<float> vec2;
+// World coordinates: fixed-point i128, 1 unit = 1 pixel, 32 px = 1 tile
+typedef vector2_base<wcoord> wvec2;
 typedef vector2_base<bool> bvec2;
 typedef vector2_base<int> ivec2;
+
+inline vec2 ToVec2(const wvec2 &v)
+{
+	return vec2(v.x.to_float(), v.y.to_float());
+}
+inline wvec2 ToWVec2(const vec2 &v)
+{
+	return wvec2(v.x, v.y);
+}
+inline wvec2 ToWVec2(float x, float y)
+{
+	return wvec2(x, y);
+}
 
 template<Numeric T>
 constexpr bool closest_point_on_line(vector2_base<T> line_pointA, vector2_base<T> line_pointB, vector2_base<T> target_point, vector2_base<T> &out_pos)

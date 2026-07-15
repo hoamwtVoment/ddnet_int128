@@ -3,13 +3,15 @@
 #ifndef BASE_MATH_H
 #define BASE_MATH_H
 
+#include "world_coord.h"
+
 #include <cmath>
 #include <concepts>
 #include <cstdlib>
 #include <limits>
 
 template<typename T>
-concept Numeric = std::integral<T> || std::floating_point<T>;
+concept Numeric = std::integral<T> || std::floating_point<T> || std::same_as<T, wcoord>;
 
 constexpr float pi = 3.1415926535897932384626433f;
 constexpr float normalized_golden_angle = 137.50776f / 360.0f;
@@ -22,6 +24,16 @@ constexpr int round_to_int(float f)
 constexpr int round_truncate(float f)
 {
 	return (int)f;
+}
+
+inline int round_to_int(wcoord v)
+{
+	return v.round_to_int();
+}
+
+inline int round_truncate(wcoord v)
+{
+	return v.to_int();
 }
 
 template<typename T, typename TB>
