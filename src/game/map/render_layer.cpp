@@ -229,8 +229,8 @@ CRenderLayerGroup::CRenderLayerGroup(int GroupId, CMapItemGroup *pGroup) :
 
 static vec2 EffectiveRenderCenter(const CRenderLayerParams &Params)
 {
-	// Large absolute float centers collapse the orthographic view (center±half
-	// rounds to center). Render relative to m_RenderOrigin so screen extents stay finite.
+	// GPU translation: absolute camera minus absolute cell origin (not a logical
+	// "relative coordinate system" — world stays absolute; only the float matrix shifts).
 	if(Params.m_FarLands || Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f)
 	{
 		const float Cx = Params.m_Center.x - Params.m_RenderOrigin.x;
@@ -543,21 +543,14 @@ void CRenderLayerTile::RenderFarLandsEdgeFill(const ColorRGBA &Color, const CRen
 		EndY = Mid + MaxSpan / 2;
 	}
 
-	// Current MapScreen is world - RenderOrigin. Local tile index `tx` sits at world tile:
-	//   CamTile + (tx - CamLocalTile)
-	// CamLocalTile ≈ (Center - Origin) / 32
-	const float CamLocalX = std::isfinite(Params.m_Center.x - Params.m_RenderOrigin.x) ? (Params.m_Center.x - Params.m_RenderOrigin.x) : 0.0f;
-	const float CamLocalY = std::isfinite(Params.m_Center.y - Params.m_RenderOrigin.y) ? (Params.m_Center.y - Params.m_RenderOrigin.y) : 0.0f;
-	const double CamLocalTX = (double)CamLocalX / 32.0;
-	const double CamLocalTY = (double)CamLocalY / 32.0;
-
-	double BaseWorldTX = Params.m_CamTileX - CamLocalTX;
-	double BaseWorldTY = Params.m_CamTileY - CamLocalTY;
-	// If cam tile is non-finite (ultra-far float collapse), force sample to the far edge.
+	// Absolute world phase: MapScreen is (world_px - origin_px).
+	// Local tile index tx is at absolute world tile OriginTileX + tx.
+	double BaseWorldTX = Params.m_OriginTileX;
+	double BaseWorldTY = Params.m_OriginTileY;
 	if(!std::isfinite(BaseWorldTX))
-		BaseWorldTX = (Params.m_Center.x < 0.0f) ? -1.0e9 : (double)w + 1.0e9;
+		BaseWorldTX = std::isfinite(Params.m_CamTileX) ? Params.m_CamTileX : ((Params.m_Center.x < 0.0f) ? -1.0e9 : (double)w + 1.0e9);
 	if(!std::isfinite(BaseWorldTY))
-		BaseWorldTY = (Params.m_Center.y < 0.0f) ? -1.0e9 : (double)h + 1.0e9;
+		BaseWorldTY = std::isfinite(Params.m_CamTileY) ? Params.m_CamTileY : ((Params.m_Center.y < 0.0f) ? -1.0e9 : (double)h + 1.0e9);
 
 	Graphics()->BlendNone();
 	RenderMap()->RenderTilemapEdgeFill(m_pTiles, w, h, Scale, Color,

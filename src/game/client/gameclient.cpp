@@ -852,32 +852,40 @@ void CGameClient::UpdateRenderOrigin()
 
 	if(NeedOrigin && HaveChar)
 	{
-		// Keep origin stable; only re-anchor when player drifts far in relative space.
-		// Re-anchoring every frame would desync float origin vs i128 residual.
-		constexpr double ReanchorPx = 50000.0; // ~1562 tiles; still tiny for float
-		bool Reanchor = !m_RenderOriginActive;
-		if(!Reanchor)
+		// Absolute world cell: origin is floor(pos/CELL)*CELL in absolute pixels.
+		// Not "player-relative" — two players in the same absolute cell share origin.
+		const i128 Cell = I128(RENDER_ORIGIN_CELL_PX);
+		auto AlignDown = [&](i128 V) -> i128 {
+			if(V >= I128(0))
+				return (V / Cell) * Cell;
+			// floor division for negatives
+			i128 Q = V / Cell; // toward zero
+			if(Q * Cell != V)
+				Q = Q - I128(1);
+			return Q * Cell;
+		};
+		const i128 Ox = AlignDown(CharPx);
+		const i128 Oy = AlignDown(CharPy);
+		if(!m_RenderOriginActive || Ox != m_RenderOriginPxX || Oy != m_RenderOriginPxY)
 		{
-			const double Dx = i128_to_double(CharPx - m_RenderOriginPxX);
-			const double Dy = i128_to_double(CharPy - m_RenderOriginPxY);
-			if(!std::isfinite(Dx) || !std::isfinite(Dy) || std::abs(Dx) > ReanchorPx || std::abs(Dy) > ReanchorPx)
-				Reanchor = true;
-		}
-		if(Reanchor)
-		{
-			m_RenderOriginPxX = CharPx;
-			m_RenderOriginPxY = CharPy;
-			m_RenderOrigin = vec2((float)i128_to_double(CharPx), (float)i128_to_double(CharPy));
+			m_RenderOriginPxX = Ox;
+			m_RenderOriginPxY = Oy;
+			m_RenderOrigin = vec2((float)i128_to_double(Ox), (float)i128_to_double(Oy));
 		}
 		m_RenderOriginActive = true;
 	}
 	else if(NeedOrigin && std::isfinite(C.x) && std::isfinite(C.y))
 	{
-		if(!m_RenderOriginActive)
+		const float Cell = (float)RENDER_ORIGIN_CELL_PX;
+		const float Ox = std::floor(C.x / Cell) * Cell;
+		const float Oy = std::floor(C.y / Cell) * Cell;
+		const i128 OxI = i128_from_double((double)Ox);
+		const i128 OyI = i128_from_double((double)Oy);
+		if(!m_RenderOriginActive || OxI != m_RenderOriginPxX || OyI != m_RenderOriginPxY)
 		{
-			m_RenderOrigin = vec2(std::floor(C.x + 0.5f), std::floor(C.y + 0.5f));
-			m_RenderOriginPxX = i128_from_double((double)m_RenderOrigin.x);
-			m_RenderOriginPxY = i128_from_double((double)m_RenderOrigin.y);
+			m_RenderOrigin = vec2(Ox, Oy);
+			m_RenderOriginPxX = OxI;
+			m_RenderOriginPxY = OyI;
 		}
 		m_RenderOriginActive = true;
 	}

@@ -332,15 +332,19 @@ public:
 
 	vec2 m_LocalCharacterPos;
 
-	// World-space origin for GPU-friendly rendering at huge coords.
-	// Subtract i128 origin *before* converting to float so sub-tile motion stays precise
-	// (absolute float world coords quantize to multi-tile steps far out).
+	// Absolute-world render origin (GPU translation only).
+	// Game positions stay absolute i128. GPU cannot use huge absolute floats, so we
+	// subtract an absolute-aligned cell origin (not a player-relative frame).
+	// Origin = floor(world_px / CELL) * CELL in absolute pixels — world-locked grid.
 	vec2 m_RenderOrigin = vec2(0.0f, 0.0f);
 	i128 m_RenderOriginPxX = I128(0);
 	i128 m_RenderOriginPxY = I128(0);
 	bool m_RenderOriginActive = false;
+	static constexpr int64_t RENDER_ORIGIN_CELL_PX = 65536; // 2048 tiles; multiple of 32
 	void UpdateRenderOrigin();
 	vec2 RenderOrigin() const { return m_RenderOrigin; }
+	i128 RenderOriginPxX() const { return m_RenderOriginPxX; }
+	i128 RenderOriginPxY() const { return m_RenderOriginPxY; }
 	bool RenderOriginActive() const { return m_RenderOriginActive; }
 	// World float (already imprecise far out) → render-local
 	vec2 ToRenderSpace(vec2 WorldPos) const { return WorldPos - m_RenderOrigin; }

@@ -60,15 +60,16 @@ public:
 	bool m_DebugRenderClusterClips;
 	bool m_DebugRenderTileClips;
 
-	// Far-lands / large-coordinate rendering (camera-local MapScreen).
-	// When m_FarLands is set, groups map with (Center - RenderOrigin) so float
-	// view width does not collapse, and tile layers fill the viewport by
-	// sampling edge-clamped map tiles (vanilla infinite border semantics).
+	// Far-lands: MapScreen uses absolute world minus absolute cell origin
+	// (GPU translation only; game coords stay absolute i128).
 	vec2 m_RenderOrigin = vec2(0.0f, 0.0f);
 	bool m_FarLands = false;
-	// Approximate camera center in world tiles (for edge sampling).
+	// Absolute camera center in world tiles (edge sampling / kill band).
 	double m_CamTileX = 0.0;
 	double m_CamTileY = 0.0;
+	// Absolute world tile index of render-local (0,0) == origin_px/32.
+	double m_OriginTileX = 0.0;
+	double m_OriginTileY = 0.0;
 };
 
 class CRenderLayer : public CRenderComponent
