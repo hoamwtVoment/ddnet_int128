@@ -295,6 +295,7 @@ class CRenderLayerEntityGame final : public CRenderLayerEntityBase
 {
 public:
 	CRenderLayerEntityGame(int GroupId, int LayerId, int Flags, CMapItemLayerTilemap *pLayerTilemap);
+	bool DoRender(const CRenderLayerParams &Params) override;
 	void Init() override;
 
 protected:
