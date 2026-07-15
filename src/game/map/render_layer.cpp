@@ -279,10 +279,19 @@ void CRenderLayerGroup::Render(const CRenderLayerParams &Params)
 {
 	int ParallaxZoom = std::clamp(std::max(m_pGroup->m_ParallaxX, m_pGroup->m_ParallaxY), 0, 100);
 	float aPoints[4];
-	// Maps always use absolute camera (vanilla hard-draw). Entity render-origin is
-	// only for tees/items — subtracting it here desyncs tile buffers (vanish at 2048-tile cells).
-	Graphics()->MapScreenToWorld(Params.m_Center.x, Params.m_Center.y, m_pGroup->m_ParallaxX, m_pGroup->m_ParallaxY, (float)ParallaxZoom,
-		m_pGroup->m_OffsetX, m_pGroup->m_OffsetY, Graphics()->ScreenAspect(), Params.m_Zoom, aPoints);
+	// When GPU origin is active (huge coords), MapScreen must be relative or float
+	// collapses into vertical strips / empty (e.g. tile ~2^25). Tile draws then use
+	// HardEdgeStretch in the same space — not absolute EXTEND across 1e9 px.
+	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
+	const float Cx = OriginShifted ? (Params.m_Center.x - Params.m_RenderOrigin.x) : Params.m_Center.x;
+	const float Cy = OriginShifted ? (Params.m_Center.y - Params.m_RenderOrigin.y) : Params.m_Center.y;
+	const float ParX = (Params.m_OutsideMap && OriginShifted) ? 100.0f : m_pGroup->m_ParallaxX;
+	const float ParY = (Params.m_OutsideMap && OriginShifted) ? 100.0f : m_pGroup->m_ParallaxY;
+	const float OffX = (Params.m_OutsideMap && OriginShifted) ? 0.0f : m_pGroup->m_OffsetX;
+	const float OffY = (Params.m_OutsideMap && OriginShifted) ? 0.0f : m_pGroup->m_OffsetY;
+	const float ParZoom = (Params.m_OutsideMap && OriginShifted) ? 100.0f : (float)ParallaxZoom;
+	Graphics()->MapScreenToWorld(Cx, Cy, ParX, ParY, ParZoom,
+		OffX, OffY, Graphics()->ScreenAspect(), Params.m_Zoom, aPoints);
 	Graphics()->MapScreen(aPoints[0], aPoints[1], aPoints[2], aPoints[3]);
 }
 
@@ -677,53 +686,54 @@ void CRenderLayerTile::RenderHardEdgeStretch(const ColorRGBA &Color, const CRend
 	if(PastRight)
 		Col0 = Col1 = MapW - 1;
 
+	// Tile the edge across the *current* MapScreen with Scale=(1,1) per cell.
+	// One huge gScale (vanilla EXTEND across 1e9 px) makes textureGrad/dFdx explode
+	// into vertical stripes and a void past ~2^25 tiles.
 	const float CoverL = ScreenX0 - 32.0f;
 	const float CoverR = ScreenX1 + 32.0f;
 	const float CoverT = ScreenY0 - 32.0f;
 	const float CoverB = ScreenY1 + 32.0f;
-	const float ScaleX = (CoverR - CoverL) / 32.0f;
-	const float ScaleY = (CoverB - CoverT) / 32.0f;
-	if(!std::isfinite(ScaleX) || !std::isfinite(ScaleY) || ScaleX <= 0.0f || ScaleY <= 0.0f)
+	if(!std::isfinite(CoverL) || !std::isfinite(CoverR) || CoverR <= CoverL)
 		return;
 
-	auto DrawOne = [&](CTileLayerVisuals::CTileVisual &Visual, vec2 OffsetPx, vec2 ScaleTiles) {
+	auto DrawOne = [&](CTileLayerVisuals::CTileVisual &Visual, vec2 OffsetPx) {
 		if(!Visual.DoDraw())
 			return;
-		if(!std::isfinite(OffsetPx.x) || !std::isfinite(OffsetPx.y) || !std::isfinite(ScaleTiles.x) || !std::isfinite(ScaleTiles.y))
+		if(!std::isfinite(OffsetPx.x) || !std::isfinite(OffsetPx.y))
 			return;
-		if(ScaleTiles.x == 0.0f || ScaleTiles.y == 0.0f)
-			return;
+		// Scale 1,1: inVertex kept as uploaded (0..32 and row/col*32); offset places the cell.
 		Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color,
-			(offset_ptr_size)Visual.IndexBufferByteOffset(), OffsetPx, ScaleTiles, 1);
+			(offset_ptr_size)Visual.IndexBufferByteOffset(), OffsetPx, vec2(1.0f, 1.0f), 1);
 	};
 
-	// Border-right/left verts live at local x=0..32, y=row*32. Cancel baked Y with -Oy,
-	// then place a 1-tile-tall band at the row's render-local Y by using Scale.y such that
-	// we only want one row — actually verts already span y..y+1 in tiles; Scale.y=1 and
-	// Offset.y=-Oy keeps world row Y in render-local space. Cover X with screen strip.
-	//
-	// inVertex.x in [0,32], Offset.x=CoverL, Scale.x=ScaleX → x covers full screen.
-	// inVertex.y in [y*32,(y+1)*32], Offset.y=-Oy, Scale.y=1 → correct row height/pos.
+	// Right/left edge: verts at x=0..32, y=row*32. Off=(cellX, -Oy) → x in cellX..cellX+32,
+	// y = row*32 - Oy (render-local).
 	if(PastRight || PastLeft)
 	{
+		constexpr int MaxCells = 96;
+		int Cells = 0;
 		for(int y = Row0; y <= Row1; ++y)
 		{
 			auto &Vis = PastRight ? Visuals.m_vBorderRight[y] : Visuals.m_vBorderLeft[y];
-			DrawOne(Vis, vec2(CoverL, -Oy), vec2(ScaleX, 1.0f));
+			for(float x = CoverL; x < CoverR && Cells < MaxCells; x += 32.0f, ++Cells)
+				DrawOne(Vis, vec2(x, -Oy));
 		}
 	}
 
-	// Top/bottom: verts at x=col*32, y=0..32. Offset.x=-Ox keeps columns; cover Y full screen.
+	// Top/bottom edge: verts at x=col*32, y=0..32.
 	if(PastTop || PastBottom)
 	{
+		constexpr int MaxCells = 96;
+		int Cells = 0;
 		for(int x = Col0; x <= Col1; ++x)
 		{
 			auto &Vis = PastBottom ? Visuals.m_vBorderBottom[x] : Visuals.m_vBorderTop[x];
-			DrawOne(Vis, vec2(-Ox, CoverT), vec2(1.0f, ScaleY));
+			for(float y = CoverT; y < CoverB && Cells < MaxCells; y += 32.0f, ++Cells)
+				DrawOne(Vis, vec2(-Ox, y));
 		}
 	}
 
-	// Both axes outside: one corner tile over the whole view.
+	// Both axes outside: fill view with corner tile.
 	if((PastLeft || PastRight) && (PastTop || PastBottom))
 	{
 		CTileLayerVisuals::CTileVisual *pCorner = &Visuals.m_BorderBottomRight;
@@ -733,8 +743,13 @@ void CRenderLayerTile::RenderHardEdgeStretch(const ColorRGBA &Color, const CRend
 			pCorner = &Visuals.m_BorderTopRight;
 		else if(PastLeft && PastBottom)
 			pCorner = &Visuals.m_BorderBottomLeft;
-		// Corner verts are a unit tile at (0,0) area — place at screen corner with full scale.
-		DrawOne(*pCorner, vec2(CoverL, CoverT), vec2(ScaleX, ScaleY));
+		constexpr int MaxCells = 96;
+		int Cells = 0;
+		for(float y = CoverT; y < CoverB && Cells < MaxCells; y += 32.0f)
+		{
+			for(float x = CoverL; x < CoverR && Cells < MaxCells; x += 32.0f, ++Cells)
+				DrawOne(*pCorner, vec2(x, y));
+		}
 	}
 }
 
@@ -790,13 +805,25 @@ bool CRenderLayerTile::DoRender(const CRenderLayerParams &Params)
 
 void CRenderLayerTile::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	// Always vanilla: map tiles + RenderTileBorder EXTEND. Never swap in a
-	// separate far-lands path that drops all tiles (e.g. at 2048-tile origin cells).
+	// Far + off-map: absolute EXTEND from map edge to ~2^25 tiles causes float
+	// raster stripes and a void on one side. Paint edge tiles in render-local view.
+	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
+	if(Params.m_OutsideMap && Params.m_RenderTileBorder && OriginShifted)
+	{
+		RenderHardEdgeStretch(Color, Params);
+		return;
+	}
 	RenderTileLayer(Color, Params);
 }
 
 void CRenderLayerTile::RenderTileLayerNoTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
+	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
+	if(Params.m_OutsideMap && Params.m_RenderTileBorder && OriginShifted)
+	{
+		RenderHardEdgeStretch(Color, Params);
+		return;
+	}
 	Graphics()->BlendNone();
 	RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, (Params.m_RenderTileBorder ? TILERENDERFLAG_EXTEND : 0) | LAYERRENDERFLAG_OPAQUE);
 	Graphics()->BlendNormal();
@@ -1709,13 +1736,29 @@ void CRenderLayerEntityGame::Init()
 
 void CRenderLayerEntityGame::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	if(Params.m_RenderTileBorder)
+	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
+	// Far off-map: skip absolute kill EXTEND (causes red vertical float stripes).
+	if(Params.m_RenderTileBorder && !(Params.m_OutsideMap && OriginShifted))
 		RenderKillTileBorder(Color.Multiply(GetDeathBorderColor()));
+	if(Params.m_OutsideMap && OriginShifted)
+	{
+		if(Params.m_EntityOverlayVal)
+			RenderHardEdgeStretch(Color, Params);
+		return;
+	}
 	RenderTileLayer(Color, Params);
 }
 
 void CRenderLayerEntityGame::RenderTileLayerNoTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
+	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
+	if(Params.m_OutsideMap && OriginShifted)
+	{
+		if(Params.m_EntityOverlayVal)
+			RenderHardEdgeStretch(Color, Params);
+		return;
+	}
+
 	Graphics()->BlendNone();
 	RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, (Params.m_RenderTileBorder ? TILERENDERFLAG_EXTEND : 0) | LAYERRENDERFLAG_OPAQUE);
 	Graphics()->BlendNormal();
