@@ -15,6 +15,26 @@
 #include <game/mapitems.h>
 
 #include <cmath>
+#include <limits>
+
+// Collision walks sample the path once per pixel. With huge positions/speeds
+// (int128 world / ho_speedlimit off / far teleports) that becomes O(1e8+) and
+// freezes the server. Cap samples; long ranges get coarser steps.
+static int CollisionSampleCount(float Distance)
+{
+	if(!std::isfinite(Distance) || Distance <= 0.0f)
+		return 1;
+	// Hard ceiling: never more than this many loop iterations per call
+	constexpr int MaxSamples = 2048;
+	if(Distance >= static_cast<float>(std::numeric_limits<int>::max()))
+		return MaxSamples;
+	int Samples = static_cast<int>(Distance) + 1;
+	if(Samples < 1)
+		Samples = 1;
+	if(Samples > MaxSamples)
+		Samples = MaxSamples;
+	return Samples;
+}
 
 wvec2 ClampVel(int MoveRestriction, wvec2 Vel)
 {
@@ -334,7 +354,7 @@ int CCollision::GetTile(int x, int y) const
 int CCollision::IntersectLine(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutCollision, wvec2 *pOutBeforeCollision) const
 {
 	float Distance = distance(Pos0, Pos1);
-	int End(Distance + 1);
+	const int End = CollisionSampleCount(Distance);
 	wvec2 Last = Pos0;
 	for(int i = 0; i <= End; i++)
 	{
@@ -365,7 +385,7 @@ int CCollision::IntersectLine(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutCollision, wvec
 int CCollision::IntersectLineTeleHook(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutCollision, wvec2 *pOutBeforeCollision, int *pTeleNr) const
 {
 	float Distance = distance(Pos0, Pos1);
-	int End(Distance + 1);
+	const int End = CollisionSampleCount(Distance);
 	wvec2 Last = Pos0;
 	int dx = 0, dy = 0; // Offset for checking the "through" tile
 	ThroughOffset(Pos0, Pos1, &dx, &dy);
@@ -427,7 +447,7 @@ int CCollision::IntersectLineTeleHook(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutCollisi
 int CCollision::IntersectLineTeleWeapon(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutCollision, wvec2 *pOutBeforeCollision, int *pTeleNr) const
 {
 	float Distance = distance(Pos0, Pos1);
-	int End(Distance + 1);
+	const int End = CollisionSampleCount(Distance);
 	wvec2 Last = Pos0;
 	for(int i = 0; i <= End; i++)
 	{
@@ -544,7 +564,8 @@ void CCollision::MoveBox(wvec2 *pInoutPos, wvec2 *pInoutVel, wvec2 Size, vec2 El
 	wvec2 Vel = *pInoutVel;
 
 	float Distance = length(Vel);
-	int Max = (int)Distance;
+	// Cap micro-steps: with ho_speedlimit off, Distance can be millions of pixels
+	const int Max = CollisionSampleCount(Distance) - 1;
 
 	if(Distance > 0.00001f)
 	{
@@ -929,8 +950,7 @@ std::vector<int> CCollision::GetMapIndices(wvec2 PrevPos, wvec2 Pos, unsigned Ma
 {
 	std::vector<int> vIndices;
 	float d = distance(PrevPos, Pos);
-	int End(d + 1);
-	if(!d)
+	if(!d || !std::isfinite(d))
 	{
 		int Nx = std::clamp((int)Pos.x / 32, 0, m_Width - 1);
 		int Ny = std::clamp((int)Pos.y / 32, 0, m_Height - 1);
@@ -946,10 +966,12 @@ std::vector<int> CCollision::GetMapIndices(wvec2 PrevPos, wvec2 Pos, unsigned Ma
 	}
 	else
 	{
+		// Far teleports (e.g. ho_tp to 1e7 tiles): do not walk every pixel
+		const int End = CollisionSampleCount(d);
 		int LastIndex = 0;
 		for(int i = 0; i < End; i++)
 		{
-			float a = i / d;
+			float a = i / (float)(End > 1 ? End - 1 : 1);
 			wvec2 Tmp = mix(PrevPos, Pos, a);
 			int Nx = std::clamp((int)Tmp.x / 32, 0, m_Width - 1);
 			int Ny = std::clamp((int)Tmp.y / 32, 0, m_Height - 1);
@@ -1026,10 +1048,10 @@ int CCollision::GetIndex(wvec2 PrevPos, wvec2 Pos) const
 		}
 	}
 
-	const int DistanceRounded = std::ceil(Distance);
+	const int DistanceRounded = CollisionSampleCount(Distance);
 	for(int i = 0; i < DistanceRounded; i++)
 	{
-		float a = (float)i / Distance;
+		float a = (float)i / (float)(DistanceRounded > 1 ? DistanceRounded - 1 : 1);
 		wvec2 Tmp = mix(PrevPos, Pos, a);
 		int Nx = std::clamp((int)Tmp.x / 32, 0, m_Width - 1);
 		int Ny = std::clamp((int)Tmp.y / 32, 0, m_Height - 1);
@@ -1156,10 +1178,10 @@ int CCollision::IntersectNoLaser(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutCollision, w
 	float Distance = distance(Pos0, Pos1);
 	wvec2 Last = Pos0;
 
-	const int DistanceRounded = std::ceil(Distance);
+	const int DistanceRounded = CollisionSampleCount(Distance);
 	for(int i = 0; i < DistanceRounded; i++)
 	{
-		float a = i / Distance;
+		float a = i / (float)(DistanceRounded > 1 ? DistanceRounded - 1 : 1);
 		wvec2 Pos = mix(Pos0, Pos1, a);
 		int Nx = std::clamp(round_to_int(Pos.x) / 32, 0, m_Width - 1);
 		int Ny = std::clamp(round_to_int(Pos.y) / 32, 0, m_Height - 1);
@@ -1188,10 +1210,10 @@ int CCollision::IntersectNoLaserNoWalls(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutColli
 	float Distance = distance(Pos0, Pos1);
 	wvec2 Last = Pos0;
 
-	const int DistanceRounded = std::ceil(Distance);
+	const int DistanceRounded = CollisionSampleCount(Distance);
 	for(int i = 0; i < DistanceRounded; i++)
 	{
-		float a = (float)i / Distance;
+		float a = (float)i / (float)(DistanceRounded > 1 ? DistanceRounded - 1 : 1);
 		wvec2 Pos = mix(Pos0, Pos1, a);
 		if(IsNoLaser(round_to_int(Pos.x), round_to_int(Pos.y)) || IsFrontNoLaser(round_to_int(Pos.x), round_to_int(Pos.y)))
 		{
@@ -1218,10 +1240,10 @@ int CCollision::IntersectAir(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutCollision, wvec2
 	float Distance = distance(Pos0, Pos1);
 	wvec2 Last = Pos0;
 
-	const int DistanceRounded = std::ceil(Distance);
+	const int DistanceRounded = CollisionSampleCount(Distance);
 	for(int i = 0; i < DistanceRounded; i++)
 	{
-		float a = (float)i / Distance;
+		float a = (float)i / (float)(DistanceRounded > 1 ? DistanceRounded - 1 : 1);
 		wvec2 Pos = mix(Pos0, Pos1, a);
 		if(IsSolid(round_to_int(Pos.x), round_to_int(Pos.y)) || (!GetTile(round_to_int(Pos.x), round_to_int(Pos.y)) && !GetFrontTile(round_to_int(Pos.x), round_to_int(Pos.y))))
 		{
