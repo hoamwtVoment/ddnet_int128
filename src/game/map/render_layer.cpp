@@ -619,9 +619,9 @@ void CRenderLayerTile::RenderKillTileBorder(const ColorRGBA &Color)
 
 void CRenderLayerTile::RenderHardEdgeStretch(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	// Vanilla far-camera look: take the map's edge column/row tiles and stretch them
-	// across the current MapScreen (already in render-local space via RenderOrigin).
-	// This is hard EXTEND, not a reconstructed interior map.
+	// Origin-shifted MapScreen is near 0; vanilla EXTEND indices would sample the wrong
+	// map slice. Paint the *edge* column/row tiles as full-width strips in the current
+	// view (classic far gray + bars). Keep all offsets near the screen — no huge floats.
 	if(!m_VisualTiles.has_value() || !m_pLayerTilemap)
 		return;
 	CTileLayerVisuals &Visuals = m_VisualTiles.value();
@@ -641,43 +641,56 @@ void CRenderLayerTile::RenderHardEdgeStretch(const ColorRGBA &Color, const CRend
 		return;
 	}
 
-	// Absolute edge positions in render-local pixels: world_px - origin.
-	const float Ox = Params.m_RenderOrigin.x;
-	const float Oy = Params.m_RenderOrigin.y;
-	const float EdgeL = 0.0f - Ox;
-	const float EdgeR = (float)MapW * 32.0f - Ox;
-	const float EdgeT = 0.0f - Oy;
-	const float EdgeB = (float)MapH * 32.0f - Oy;
-
-	// Which map edge faces the camera (absolute tiles).
 	const bool PastRight = Params.m_CamTileX >= (double)MapW;
 	const bool PastLeft = Params.m_CamTileX < 0.0;
 	const bool PastBottom = Params.m_CamTileY >= (double)MapH;
 	const bool PastTop = Params.m_CamTileY < 0.0;
+	if(!PastRight && !PastLeft && !PastBottom && !PastTop)
+		return;
 
-	// Visible map-row range for vertical edges (Y still often in-map while X is huge).
-	auto ClampRow = [&](int Y) { return std::clamp(Y, 0, MapH - 1); };
-	auto ClampCol = [&](int X) { return std::clamp(X, 0, MapW - 1); };
-
-	// Absolute Y of render-local y=0 is Oy/32; screen local tiles → absolute map rows.
+	const float Oy = Params.m_RenderOrigin.y;
+	const float Ox = Params.m_RenderOrigin.x;
 	const double OriginTileY = (double)Oy / 32.0;
 	const double OriginTileX = (double)Ox / 32.0;
+
+	// Absolute map rows/cols under the view (Y often still in-map when X is huge).
 	const int ScreenTY0 = (int)std::floor((double)ScreenY0 / 32.0);
 	const int ScreenTY1 = (int)std::ceil((double)ScreenY1 / 32.0);
 	const int ScreenTX0 = (int)std::floor((double)ScreenX0 / 32.0);
 	const int ScreenTX1 = (int)std::ceil((double)ScreenX1 / 32.0);
 
-	int Row0 = ClampRow((int)std::floor(OriginTileY + (double)ScreenTY0));
-	int Row1 = ClampRow((int)std::floor(OriginTileY + (double)ScreenTY1 - 1e-9));
+	int Row0 = (int)std::floor(OriginTileY + (double)ScreenTY0);
+	int Row1 = (int)std::floor(OriginTileY + (double)ScreenTY1);
 	if(Row1 < Row0)
 		std::swap(Row0, Row1);
-	Row1 = std::min(MapH - 1, Row1 + 1);
+	Row0 = std::clamp(Row0, 0, MapH - 1);
+	Row1 = std::clamp(Row1, 0, MapH - 1);
 
-	int Col0 = ClampCol((int)std::floor(OriginTileX + (double)ScreenTX0));
-	int Col1 = ClampCol((int)std::floor(OriginTileX + (double)ScreenTX1 - 1e-9));
+	int Col0 = (int)std::floor(OriginTileX + (double)ScreenTX0);
+	int Col1 = (int)std::floor(OriginTileX + (double)ScreenTX1);
 	if(Col1 < Col0)
 		std::swap(Col0, Col1);
-	Col1 = std::min(MapW - 1, Col1 + 1);
+	Col0 = std::clamp(Col0, 0, MapW - 1);
+	Col1 = std::clamp(Col1, 0, MapW - 1);
+
+	// If Y is completely above/below the map, use the facing edge row only.
+	if(PastTop)
+		Row0 = Row1 = 0;
+	if(PastBottom)
+		Row0 = Row1 = MapH - 1;
+	if(PastLeft)
+		Col0 = Col1 = 0;
+	if(PastRight)
+		Col0 = Col1 = MapW - 1;
+
+	const float CoverL = ScreenX0 - 32.0f;
+	const float CoverR = ScreenX1 + 32.0f;
+	const float CoverT = ScreenY0 - 32.0f;
+	const float CoverB = ScreenY1 + 32.0f;
+	const float ScaleX = (CoverR - CoverL) / 32.0f;
+	const float ScaleY = (CoverB - CoverT) / 32.0f;
+	if(!std::isfinite(ScaleX) || !std::isfinite(ScaleY) || ScaleX <= 0.0f || ScaleY <= 0.0f)
+		return;
 
 	auto DrawOne = [&](CTileLayerVisuals::CTileVisual &Visual, vec2 OffsetPx, vec2 ScaleTiles) {
 		if(!Visual.DoDraw())
@@ -690,93 +703,44 @@ void CRenderLayerTile::RenderHardEdgeStretch(const ColorRGBA &Color, const CRend
 			(offset_ptr_size)Visual.IndexBufferByteOffset(), OffsetPx, ScaleTiles, 1);
 	};
 
-	// Horizontal stretch of a vertical edge (classic brown bars when Y still in-map).
+	// Border-right/left verts live at local x=0..32, y=row*32. Cancel baked Y with -Oy,
+	// then place a 1-tile-tall band at the row's render-local Y by using Scale.y such that
+	// we only want one row — actually verts already span y..y+1 in tiles; Scale.y=1 and
+	// Offset.y=-Oy keeps world row Y in render-local space. Cover X with screen strip.
+	//
+	// inVertex.x in [0,32], Offset.x=CoverL, Scale.x=ScaleX → x covers full screen.
+	// inVertex.y in [y*32,(y+1)*32], Offset.y=-Oy, Scale.y=1 → correct row height/pos.
 	if(PastRight || PastLeft)
 	{
-		const float EdgeX = PastRight ? EdgeR : EdgeL;
-		// Shader: VertexPos = inVertex * Scale + Offset; inVertex.x is 0..32 for the edge tile.
-		// Want final width to cover the whole screen: Scale.x = screen_width_px / 32.
-		const float CoverL = std::min(ScreenX0, ScreenX1) - 32.0f;
-		const float CoverR = std::max(ScreenX0, ScreenX1) + 32.0f;
-		// Place the stretched tile so it starts at EdgeX and extends toward/through the view.
-		float ScaleX;
-		float OffX;
-		if(PastRight)
-		{
-			// Extend left edge of stretch at map right; grow to cover screen.
-			OffX = EdgeX;
-			ScaleX = (CoverR - EdgeX) / 32.0f;
-			if(ScaleX < 1.0f)
-				ScaleX = (CoverR - CoverL) / 32.0f;
-		}
-		else
-		{
-			// Past left: stretch from map left edge leftward/through view.
-			// Put right side of the unit tile at EdgeL, grow left.
-			ScaleX = (EdgeX - CoverL) / 32.0f;
-			if(ScaleX < 1.0f)
-				ScaleX = (CoverR - CoverL) / 32.0f;
-			OffX = EdgeX - ScaleX * 32.0f;
-		}
-
-		// Draw per map row that intersects the view (batch if continuous draw flags).
 		for(int y = Row0; y <= Row1; ++y)
 		{
 			auto &Vis = PastRight ? Visuals.m_vBorderRight[y] : Visuals.m_vBorderLeft[y];
-			// Border tile visuals store y in inVertex; Scale.y=1, Offset.y=0 keeps map row Y.
-			// But Offset is in render-local px — border verts already have absolute-ish y from upload
-			// (y * 32). After origin, we need Offset.y = -Oy so (y*32) - Oy is render-local.
-			DrawOne(Vis, vec2(OffX, -Oy), vec2(ScaleX, 1.0f));
+			DrawOne(Vis, vec2(CoverL, -Oy), vec2(ScaleX, 1.0f));
 		}
 	}
 
-	// Vertical stretch of a horizontal edge
+	// Top/bottom: verts at x=col*32, y=0..32. Offset.x=-Ox keeps columns; cover Y full screen.
 	if(PastTop || PastBottom)
 	{
-		const float EdgeY = PastBottom ? EdgeB : EdgeT;
-		const float CoverT = std::min(ScreenY0, ScreenY1) - 32.0f;
-		const float CoverB = std::max(ScreenY0, ScreenY1) + 32.0f;
-		float ScaleY;
-		float OffY;
-		if(PastBottom)
-		{
-			OffY = EdgeY;
-			ScaleY = (CoverB - EdgeY) / 32.0f;
-			if(ScaleY < 1.0f)
-				ScaleY = (CoverB - CoverT) / 32.0f;
-		}
-		else
-		{
-			ScaleY = (EdgeY - CoverT) / 32.0f;
-			if(ScaleY < 1.0f)
-				ScaleY = (CoverB - CoverT) / 32.0f;
-			OffY = EdgeY - ScaleY * 32.0f;
-		}
 		for(int x = Col0; x <= Col1; ++x)
 		{
 			auto &Vis = PastBottom ? Visuals.m_vBorderBottom[x] : Visuals.m_vBorderTop[x];
-			DrawOne(Vis, vec2(-Ox, OffY), vec2(1.0f, ScaleY));
+			DrawOne(Vis, vec2(-Ox, CoverT), vec2(1.0f, ScaleY));
 		}
 	}
 
-	// Corner-only (both axes outside): stretch corner tile across full view.
+	// Both axes outside: one corner tile over the whole view.
 	if((PastLeft || PastRight) && (PastTop || PastBottom))
 	{
-		CTileLayerVisuals::CTileVisual *pCorner = nullptr;
+		CTileLayerVisuals::CTileVisual *pCorner = &Visuals.m_BorderBottomRight;
 		if(PastLeft && PastTop)
 			pCorner = &Visuals.m_BorderTopLeft;
 		else if(PastRight && PastTop)
 			pCorner = &Visuals.m_BorderTopRight;
 		else if(PastLeft && PastBottom)
 			pCorner = &Visuals.m_BorderBottomLeft;
-		else
-			pCorner = &Visuals.m_BorderBottomRight;
-
-		const float CoverL = std::min(ScreenX0, ScreenX1) - 32.0f;
-		const float CoverR = std::max(ScreenX0, ScreenX1) + 32.0f;
-		const float CoverT = std::min(ScreenY0, ScreenY1) - 32.0f;
-		const float CoverB = std::max(ScreenY0, ScreenY1) + 32.0f;
-		DrawOne(*pCorner, vec2(CoverL, CoverT), vec2((CoverR - CoverL) / 32.0f, (CoverB - CoverT) / 32.0f));
+		// Corner verts are a unit tile at (0,0) area — place at screen corner with full scale.
+		DrawOne(*pCorner, vec2(CoverL, CoverT), vec2(ScaleX, ScaleY));
 	}
 }
 
@@ -832,9 +796,11 @@ bool CRenderLayerTile::DoRender(const CRenderLayerParams &Params)
 
 void CRenderLayerTile::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	// Off-map: do not treat relative MapScreen indices as map [0..W) — that paints
-	// the wrong slice. Vanilla hard-draw = edge tiles stretched across the view.
-	if(Params.m_OutsideMap && Params.m_RenderTileBorder)
+	// Only when MapScreen is origin-shifted does the vanilla path sample the wrong
+	// map slice. Near the border (origin still 0) keep full vanilla draw + EXTEND
+	// so tiles do not vanish the moment you step outside.
+	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
+	if(Params.m_OutsideMap && Params.m_RenderTileBorder && OriginShifted)
 	{
 		RenderHardEdgeStretch(Color, Params);
 		return;
@@ -844,7 +810,8 @@ void CRenderLayerTile::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, con
 
 void CRenderLayerTile::RenderTileLayerNoTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	if(Params.m_OutsideMap && Params.m_RenderTileBorder)
+	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
+	if(Params.m_OutsideMap && Params.m_RenderTileBorder && OriginShifted)
 	{
 		RenderHardEdgeStretch(Color, Params);
 		return;
@@ -1763,9 +1730,9 @@ void CRenderLayerEntityGame::RenderTileLayerWithTileBuffer(const ColorRGBA &Colo
 {
 	if(Params.m_RenderTileBorder)
 		RenderKillTileBorder(Color.Multiply(GetDeathBorderColor()));
-	if(Params.m_OutsideMap)
+	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
+	if(Params.m_OutsideMap && OriginShifted)
 	{
-		// Edge game tiles only (freeze etc. on the rim) — not tele/speedup layers.
 		if(Params.m_EntityOverlayVal)
 			RenderHardEdgeStretch(Color, Params);
 		return;
@@ -1775,7 +1742,8 @@ void CRenderLayerEntityGame::RenderTileLayerWithTileBuffer(const ColorRGBA &Colo
 
 void CRenderLayerEntityGame::RenderTileLayerNoTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	if(Params.m_OutsideMap)
+	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
+	if(Params.m_OutsideMap && OriginShifted)
 	{
 		if(Params.m_RenderTileBorder)
 			RenderKillTileBorder(Color.Multiply(GetDeathBorderColor()));
