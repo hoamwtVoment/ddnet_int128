@@ -215,7 +215,7 @@ void CPlayers::RenderHookCollLine(
 	float Angle = GetPlayerTargetAngle(&Prev, &Player, ClientId, Intra);
 
 	vec2 Direction = direction(Angle);
-	vec2 Position = GameClient()->m_aClients[ClientId].m_RenderPos;
+	vec2 Position = GameClient()->ToRenderSpace(GameClient()->m_aClients[ClientId].m_RenderPos);
 
 	static constexpr float HOOK_START_DISTANCE = CCharacterCore::PhysicalSize() * 1.5f;
 
@@ -490,9 +490,9 @@ void CPlayers::RenderHook(
 
 	vec2 Position;
 	if(in_range(ClientId, MAX_CLIENTS - 1))
-		Position = GameClient()->m_aClients[ClientId].m_RenderPos;
+		Position = GameClient()->ToRenderSpace(GameClient()->m_aClients[ClientId].m_RenderPos);
 	else
-		Position = mix(vec2(Prev.m_X, Prev.m_Y), vec2(Player.m_X, Player.m_Y), Intra);
+		Position = GameClient()->ToRenderSpace(mix(vec2((float)CharacterNetPosX(&Prev), (float)CharacterNetPosY(&Prev)), vec2((float)CharacterNetPosX(&Player), (float)CharacterNetPosY(&Player)), Intra));
 
 	// draw hook
 	Graphics()->SetColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -503,9 +503,9 @@ void CPlayers::RenderHook(
 	vec2 HookPos;
 
 	if(in_range(pPlayerChar->m_HookedPlayer, MAX_CLIENTS - 1))
-		HookPos = GameClient()->m_aClients[pPlayerChar->m_HookedPlayer].m_RenderPos;
+		HookPos = GameClient()->ToRenderSpace(GameClient()->m_aClients[pPlayerChar->m_HookedPlayer].m_RenderPos);
 	else
-		HookPos = mix(vec2(Prev.m_HookX, Prev.m_HookY), vec2(Player.m_HookX, Player.m_HookY), Intra);
+		HookPos = GameClient()->ToRenderSpace(mix(vec2((float)CharacterNetHookX(&Prev), (float)CharacterNetHookY(&Prev)), vec2((float)CharacterNetHookX(&Player), (float)CharacterNetHookY(&Player)), Intra));
 
 	float d = distance(Pos, HookPos);
 	vec2 Dir = normalize(Pos - HookPos);
@@ -591,9 +591,9 @@ void CPlayers::RenderPlayer(
 	vec2 Direction = direction(Angle);
 	vec2 Position;
 	if(in_range(ClientId, MAX_CLIENTS - 1))
-		Position = GameClient()->m_aClients[ClientId].m_RenderPos;
+		Position = GameClient()->ToRenderSpace(GameClient()->m_aClients[ClientId].m_RenderPos);
 	else
-		Position = mix(vec2(Prev.m_X, Prev.m_Y), vec2(Player.m_X, Player.m_Y), Intra);
+		Position = GameClient()->ToRenderSpace(mix(vec2((float)CharacterNetPosX(&Prev), (float)CharacterNetPosY(&Prev)), vec2((float)CharacterNetPosX(&Player), (float)CharacterNetPosY(&Player)), Intra));
 	vec2 Vel = mix(vec2(Prev.m_VelX / 256.0f, Prev.m_VelY / 256.0f), vec2(Player.m_VelX / 256.0f, Player.m_VelY / 256.0f), Intra);
 
 	GameClient()->m_Flow.Add(Position, Vel * 100.0f, 10.0f);
@@ -971,6 +971,9 @@ void CPlayers::OnRender()
 		}
 	}
 
+	// Camera-local MapScreen so tees stay precise at large world coordinates
+	GameClient()->MapScreenWorldRender();
+
 	// get screen edges to avoid rendering offscreen
 	float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
 	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
@@ -1014,7 +1017,7 @@ void CPlayers::OnRender()
 		{
 			Alpha = g_Config.m_ClRaceGhostAlpha / 100.f;
 		}
-		RenderTools()->RenderTee(CAnimState::GetIdle(), &SpectatorTeeRenderInfo()->TeeRenderInfo(), EMOTE_BLINK, vec2(1, 0), Client.m_SpecChar, Alpha);
+		RenderTools()->RenderTee(CAnimState::GetIdle(), &SpectatorTeeRenderInfo()->TeeRenderInfo(), EMOTE_BLINK, vec2(1, 0), GameClient()->ToRenderSpace(Client.m_SpecChar), Alpha);
 	}
 
 	// render everyone else's tee, then either our own or the tee we are spectating.
@@ -1029,7 +1032,8 @@ void CPlayers::OnRender()
 
 		RenderHookCollLine(&GameClient()->m_aClients[ClientId].m_RenderPrev, &GameClient()->m_aClients[ClientId].m_RenderCur, ClientId);
 
-		if(!in_range(GameClient()->m_aClients[ClientId].m_RenderPos.x, ScreenX0, ScreenX1) || !in_range(GameClient()->m_aClients[ClientId].m_RenderPos.y, ScreenY0, ScreenY1))
+		const vec2 RenderPos = GameClient()->ToRenderSpace(GameClient()->m_aClients[ClientId].m_RenderPos);
+		if(!in_range(RenderPos.x, ScreenX0, ScreenX1) || !in_range(RenderPos.y, ScreenY0, ScreenY1))
 		{
 			continue;
 		}

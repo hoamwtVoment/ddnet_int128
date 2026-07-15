@@ -1463,23 +1463,21 @@ CHud::CMovementInformation CHud::GetMovementInformation(int ClientId, int Conn) 
 
 		const vec2 Vel = mix(vec2(pPrevChar->m_VelX, pPrevChar->m_VelY), vec2(pCurChar->m_VelX, pCurChar->m_VelY), IntraTick);
 
-		float VelspeedX = Vel.x / 256.0f * Client()->GameTickSpeed();
+		// Vel is 256-fixed pixels/tick. Show raw blocks/s (no VelocityRamp).
+		// Ramp made HUD X speed asymptote near ~75 Bps and hid high ho_speed values.
+		const float TickSpeed = (float)Client()->GameTickSpeed();
+		float VelspeedX = Vel.x / 256.0f * TickSpeed;
 		if(Vel.x >= -1.0f && Vel.x <= 1.0f)
 		{
 			VelspeedX = 0.0f;
 		}
-		float VelspeedY = Vel.y / 256.0f * Client()->GameTickSpeed();
+		float VelspeedY = Vel.y / 256.0f * TickSpeed;
 		if(Vel.y >= -128.0f && Vel.y <= 128.0f)
 		{
 			VelspeedY = 0.0f;
 		}
-		// We show the speed in Blocks per Second (Bps) and therefore have to divide by the block size
+		// Blocks per Second (Bps)
 		Out.m_Speed.x = VelspeedX / 32.0f;
-		float VelspeedLength = length(vec2(Vel.x, Vel.y) / 256.0f) * Client()->GameTickSpeed();
-		// Todo: Use Velramp tuning of each individual player
-		// Since these tuning parameters are almost never changed, the default values are sufficient in most cases
-		float Ramp = VelocityRamp(VelspeedLength, GameClient()->m_aTuning[Conn].m_VelrampStart, GameClient()->m_aTuning[Conn].m_VelrampRange, GameClient()->m_aTuning[Conn].m_VelrampCurvature);
-		Out.m_Speed.x *= Ramp;
 		Out.m_Speed.y = VelspeedY / 32.0f;
 
 		float Angle = GameClient()->m_Players.GetPlayerTargetAngle(pPrevChar, pCurChar, ClientId, IntraTick);
@@ -1506,7 +1504,8 @@ void CHud::RenderMovementInformation()
 	const float Fontsize = 6.0f;
 
 	float BoxHeight = GetMovementInformationBoxHeight();
-	const float BoxWidth = 62.0f;
+	// Wider box so large position/speed values (e.g. 58e6 tiles, >75 Bps) stay readable
+	const float BoxWidth = 88.0f;
 
 	float StartX = m_Width - BoxWidth;
 	float StartY = 285.0f - BoxHeight - 4.0f; // 4 units distance to the next display;

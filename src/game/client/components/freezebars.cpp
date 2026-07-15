@@ -23,7 +23,7 @@ void CFreezeBars::RenderFreezeBar(const int ClientId)
 		return;
 	}
 
-	vec2 Position = GameClient()->m_aClients[ClientId].m_RenderPos;
+	vec2 Position = GameClient()->ToRenderSpace(GameClient()->m_aClients[ClientId].m_RenderPos);
 	Position.x -= FreezeBarHalfWidth;
 	Position.y += 32;
 
@@ -203,6 +203,8 @@ void CFreezeBars::OnRender()
 	{
 		return;
 	}
+	GameClient()->MapScreenWorldRender();
+
 	// get screen edges to avoid rendering offscreen
 	float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
 	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
@@ -227,8 +229,8 @@ void CFreezeBars::OnRender()
 		}
 
 		//don't render if the tee is offscreen
-		vec2 *pRenderPos = &GameClient()->m_aClients[ClientId].m_RenderPos;
-		if(pRenderPos->x < ScreenX0 || pRenderPos->x > ScreenX1 || pRenderPos->y < ScreenY0 || pRenderPos->y > ScreenY1)
+		const vec2 RenderPos = GameClient()->ToRenderSpace(GameClient()->m_aClients[ClientId].m_RenderPos);
+		if(RenderPos.x < ScreenX0 || RenderPos.x > ScreenX1 || RenderPos.y < ScreenY0 || RenderPos.y > ScreenY1)
 		{
 			continue;
 		}

@@ -425,6 +425,9 @@ void CCamera::OnRender()
 
 	// demo always count as spectating
 	m_WasSpectating = GameClient()->m_Snap.m_SpecInfo.m_Active;
+
+	// Keep render-space origin in sync so entities stay precise at large coords
+	GameClient()->UpdateRenderOrigin();
 }
 
 void CCamera::OnConsoleInit()

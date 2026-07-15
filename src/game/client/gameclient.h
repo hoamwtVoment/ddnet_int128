@@ -332,6 +332,15 @@ public:
 
 	vec2 m_LocalCharacterPos;
 
+	// World-space origin subtracted for GPU-friendly rendering at huge coords.
+	// Zero when near the map; set to camera center when |center| is large.
+	vec2 m_RenderOrigin = vec2(0.0f, 0.0f);
+	void UpdateRenderOrigin();
+	vec2 RenderOrigin() const { return m_RenderOrigin; }
+	vec2 ToRenderSpace(vec2 WorldPos) const { return WorldPos - m_RenderOrigin; }
+	// Set MapScreen to camera view in render-local coordinates (call before drawing entities).
+	void MapScreenWorldRender();
+
 	/**
 	 * Our prediction for the local character at tick
 	 * `IClient::PredGameTick() - 1`.

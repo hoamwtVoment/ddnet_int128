@@ -860,6 +860,8 @@ void CNamePlates::OnRender()
 	if(Client()->State() != IClient::STATE_ONLINE && Client()->State() != IClient::STATE_DEMOPLAYBACK)
 		return;
 
+	GameClient()->MapScreenWorldRender();
+
 	int ShowDirection = g_Config.m_ClShowDirection;
 #if defined(CONF_VIDEORECORDER)
 	if(IVideo::Current())
@@ -877,13 +879,13 @@ void CNamePlates::OnRender()
 		// Each player can also have a spectator char whose name plate is displayed independently
 		if(GameClient()->m_aClients[i].m_SpecCharPresent)
 		{
-			const vec2 RenderPos = GameClient()->m_aClients[i].m_SpecChar;
+			const vec2 RenderPos = GameClient()->ToRenderSpace(GameClient()->m_aClients[i].m_SpecChar);
 			RenderNamePlateGame(RenderPos, pInfo, 0.4f);
 		}
 		// Only render name plates for active characters
 		if(GameClient()->m_Snap.m_aCharacters[i].m_Active)
 		{
-			const vec2 RenderPos = GameClient()->m_aClients[i].m_RenderPos;
+			const vec2 RenderPos = GameClient()->ToRenderSpace(GameClient()->m_aClients[i].m_RenderPos);
 			RenderNamePlateGame(RenderPos, pInfo, 1.0f);
 		}
 	}

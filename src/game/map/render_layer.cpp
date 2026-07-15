@@ -498,25 +498,25 @@ void CRenderLayerTile::RenderKillTileBorder(const ColorRGBA &Color)
 	if(ScreenX1 <= ScreenX0 || ScreenY1 <= ScreenY0)
 		return;
 
-	int BorderY0 = std::floor(ScreenY0 / 32);
-	int BorderX0 = std::floor(ScreenX0 / 32);
-	int BorderY1 = std::ceil(ScreenY1 / 32);
-	int BorderX1 = std::ceil(ScreenX1 / 32);
+	// double so tile indices stay correct far from the map origin
+	const int BorderX0 = (int)std::floor((double)ScreenX0 / 32.0);
+	const int BorderY0 = (int)std::floor((double)ScreenY0 / 32.0);
+	const int BorderX1 = (int)std::ceil((double)ScreenX1 / 32.0);
+	const int BorderY1 = (int)std::ceil((double)ScreenY1 / 32.0);
 
-	if(BorderX0 >= -BorderRenderDistance && BorderY0 >= -BorderRenderDistance && BorderX1 <= (int)Visuals.m_Width + BorderRenderDistance && BorderY1 <= (int)Visuals.m_Height + BorderRenderDistance)
+	const int MapW = (int)Visuals.m_Width;
+	const int MapH = (int)Visuals.m_Height;
+	const int SafeMinX = -BorderRenderDistance;
+	const int SafeMinY = -BorderRenderDistance;
+	const int SafeMaxX = MapW + BorderRenderDistance;
+	const int SafeMaxY = MapH + BorderRenderDistance;
+
+	if(BorderX0 >= SafeMinX && BorderY0 >= SafeMinY && BorderX1 <= SafeMaxX && BorderY1 <= SafeMaxY)
 		return;
 	if(!Visuals.m_BorderKillTile.DoDraw())
 		return;
 
-	// Keep border geometry close to the map (original intent: ~300 tiles margin).
-	// Tight clamp prevents huge Scale values that flood the GPU with dense death-texels when zoomed out.
-	const int Margin = BorderRenderDistance + 32; // slightly past the freeview margin
-	BorderX0 = std::clamp(BorderX0, -Margin, (int)Visuals.m_Width + Margin - 1);
-	BorderY0 = std::clamp(BorderY0, -Margin, (int)Visuals.m_Height + Margin - 1);
-	BorderX1 = std::clamp(BorderX1, -Margin + 1, (int)Visuals.m_Width + Margin);
-	BorderY1 = std::clamp(BorderY1, -Margin + 1, (int)Visuals.m_Height + Margin);
-
-	// Cap scale so one border draw never covers more than MaxScale tiles (avoids full-screen red sea + FPS collapse)
+	// Cap per-draw scale so one call never floods the GPU
 	constexpr float MaxScale = 64.0f;
 	auto ClampScale = [](vec2 Scale) {
 		Scale.x = std::clamp(Scale.x, 0.0f, MaxScale);
@@ -524,43 +524,70 @@ void CRenderLayerTile::RenderKillTileBorder(const ColorRGBA &Color)
 		return Scale;
 	};
 
-	auto DrawKillBorder = [&](vec2 Offset, vec2 Scale) {
-		Scale = ClampScale(Scale);
-		if(Scale.x <= 0.0f || Scale.y <= 0.0f)
+	auto DrawKillBorderWorld = [&](vec2 OffsetTiles, vec2 ScaleTiles) {
+		ScaleTiles = ClampScale(ScaleTiles);
+		if(ScaleTiles.x <= 0.0f || ScaleTiles.y <= 0.0f)
 			return;
 		offset_ptr_size pOffset = (offset_ptr_size)Visuals.m_BorderKillTile.IndexBufferByteOffset();
-		Offset *= 32.0f;
-		Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color, pOffset, Offset, Scale, 1);
+		Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color, pOffset, OffsetTiles * 32.0f, ScaleTiles, 1);
 	};
 
-	// Draw left kill tile border
-	if(BorderX0 < -BorderRenderDistance)
+	// Fully outside map: fill viewport in camera-local space (GPU-friendly floats)
+	const bool FullyOutside =
+		BorderX1 <= SafeMinX || BorderX0 >= SafeMaxX ||
+		BorderY1 <= SafeMinY || BorderY0 >= SafeMaxY;
+
+	if(FullyOutside)
 	{
-		DrawKillBorder(
-			vec2(BorderX0, BorderY0),
-			vec2(-BorderRenderDistance - BorderX0, BorderY1 - BorderY0));
+		const float MidX = (ScreenX0 + ScreenX1) * 0.5f;
+		const float MidY = (ScreenY0 + ScreenY1) * 0.5f;
+		const float HalfW = (ScreenX1 - ScreenX0) * 0.5f;
+		const float HalfH = (ScreenY1 - ScreenY0) * 0.5f;
+		Graphics()->MapScreen(-HalfW, -HalfH, HalfW, HalfH);
+
+		const int LocalX0 = (int)std::floor(-HalfW / 32.0f);
+		const int LocalY0 = (int)std::floor(-HalfH / 32.0f);
+		const int LocalX1 = (int)std::ceil(HalfW / 32.0f);
+		const int LocalY1 = (int)std::ceil(HalfH / 32.0f);
+		constexpr int Chunk = 32;
+		for(int y = LocalY0; y < LocalY1; y += Chunk)
+		{
+			for(int x = LocalX0; x < LocalX1; x += Chunk)
+			{
+				const int w = std::min(Chunk, LocalX1 - x);
+				const int h = std::min(Chunk, LocalY1 - y);
+				DrawKillBorderWorld(vec2((float)x, (float)y), vec2((float)w, (float)h));
+			}
+		}
+
+		Graphics()->MapScreen(ScreenX0, ScreenY0, ScreenX1, ScreenY1);
+		return;
 	}
-	// Draw top kill tile border
-	if(BorderY0 < -BorderRenderDistance)
-	{
-		DrawKillBorder(
-			vec2(std::max(BorderX0, -BorderRenderDistance), BorderY0),
-			vec2(std::min(BorderX1, (int)Visuals.m_Width + BorderRenderDistance) - std::max(BorderX0, -BorderRenderDistance), -BorderRenderDistance - BorderY0));
-	}
-	// Draw right kill tile border
-	if(BorderX1 > (int)Visuals.m_Width + BorderRenderDistance)
-	{
-		DrawKillBorder(
-			vec2(Visuals.m_Width + BorderRenderDistance, BorderY0),
-			vec2(BorderX1 - (Visuals.m_Width + BorderRenderDistance), BorderY1 - BorderY0));
-	}
-	// Draw bottom kill tile border
-	if(BorderY1 > (int)Visuals.m_Height + BorderRenderDistance)
-	{
-		DrawKillBorder(
-			vec2(std::max(BorderX0, -BorderRenderDistance), Visuals.m_Height + BorderRenderDistance),
-			vec2(std::min(BorderX1, (int)Visuals.m_Width + BorderRenderDistance) - std::max(BorderX0, -BorderRenderDistance), BorderY1 - (Visuals.m_Height + BorderRenderDistance)));
-	}
+
+	// Near the map: exterior bands only (no clamp that pulls far views back to the map)
+	auto DrawBand = [&](int X0, int Y0, int X1, int Y1) {
+		if(X1 <= X0 || Y1 <= Y0)
+			return;
+		constexpr int Chunk = 32;
+		for(int y = Y0; y < Y1; y += Chunk)
+		{
+			for(int x = X0; x < X1; x += Chunk)
+			{
+				const int w = std::min(Chunk, X1 - x);
+				const int h = std::min(Chunk, Y1 - y);
+				DrawKillBorderWorld(vec2((float)x, (float)y), vec2((float)w, (float)h));
+			}
+		}
+	};
+
+	if(BorderX0 < SafeMinX)
+		DrawBand(BorderX0, BorderY0, SafeMinX, BorderY1);
+	if(BorderX1 > SafeMaxX)
+		DrawBand(SafeMaxX, BorderY0, BorderX1, BorderY1);
+	if(BorderY0 < SafeMinY)
+		DrawBand(std::max(BorderX0, SafeMinX), BorderY0, std::min(BorderX1, SafeMaxX), SafeMinY);
+	if(BorderY1 > SafeMaxY)
+		DrawBand(std::max(BorderX0, SafeMinX), SafeMaxY, std::min(BorderX1, SafeMaxX), BorderY1);
 }
 
 ColorRGBA CRenderLayerTile::GetRenderColor(const CRenderLayerParams &Params) const

@@ -798,6 +798,24 @@ void CGameClient::UpdatePositions()
 	UpdateRenderedCharacters();
 }
 
+void CGameClient::UpdateRenderOrigin()
+{
+	// Float loses sub-pixel precision above ~2^24; use a camera-local origin so
+	// tees/nameplates/kill border stay stable far from the map.
+	const vec2 C = m_Camera.m_Center;
+	constexpr float Threshold = 250000.0f; // ~7800 tiles
+	if(std::abs(C.x) > Threshold || std::abs(C.y) > Threshold)
+		m_RenderOrigin = vec2(std::floor(C.x + 0.5f), std::floor(C.y + 0.5f));
+	else
+		m_RenderOrigin = vec2(0.0f, 0.0f);
+}
+
+void CGameClient::MapScreenWorldRender()
+{
+	// Camera view in render-local space: world point W is drawn at W - m_RenderOrigin
+	Graphics()->MapScreenToInterface(m_Camera.m_Center.x - m_RenderOrigin.x, m_Camera.m_Center.y - m_RenderOrigin.y, m_Camera.m_Zoom);
+}
+
 void CGameClient::OnRender()
 {
 	const ColorRGBA ClearColor = color_cast<ColorRGBA>(ColorHSLA(g_Config.m_ClOverlayEntities ? g_Config.m_ClBackgroundEntitiesColor : g_Config.m_ClBackgroundColor));
@@ -3809,9 +3827,10 @@ void CGameClient::UpdateRenderedCharacters()
 		m_aClients[i].m_RenderPrev = m_Snap.m_aCharacters[i].m_Prev;
 		m_aClients[i].m_IsPredicted = false;
 		m_aClients[i].m_IsPredictedLocal = false;
+		// Reconstruct int64 world pixels from lo/hi net fields (float only for GPU)
 		vec2 UnpredPos = mix(
-			vec2(m_Snap.m_aCharacters[i].m_Prev.m_X, m_Snap.m_aCharacters[i].m_Prev.m_Y),
-			vec2(m_Snap.m_aCharacters[i].m_Cur.m_X, m_Snap.m_aCharacters[i].m_Cur.m_Y),
+			vec2((float)CharacterNetPosX(&m_Snap.m_aCharacters[i].m_Prev), (float)CharacterNetPosY(&m_Snap.m_aCharacters[i].m_Prev)),
+			vec2((float)CharacterNetPosX(&m_Snap.m_aCharacters[i].m_Cur), (float)CharacterNetPosY(&m_Snap.m_aCharacters[i].m_Cur)),
 			Client()->IntraGameTick(g_Config.m_ClDummy));
 		vec2 Pos = UnpredPos;
 
@@ -3824,8 +3843,8 @@ void CGameClient::UpdateRenderedCharacters()
 			m_aClients[i].m_IsPredicted = true;
 
 			Pos = mix(
-				vec2(m_aClients[i].m_RenderPrev.m_X, m_aClients[i].m_RenderPrev.m_Y),
-				vec2(m_aClients[i].m_RenderCur.m_X, m_aClients[i].m_RenderCur.m_Y),
+				vec2((float)CharacterNetPosX(&m_aClients[i].m_RenderPrev), (float)CharacterNetPosY(&m_aClients[i].m_RenderPrev)),
+				vec2((float)CharacterNetPosX(&m_aClients[i].m_RenderCur), (float)CharacterNetPosY(&m_aClients[i].m_RenderCur)),
 				m_aClients[i].m_IsPredicted ? Client()->PredIntraGameTick(g_Config.m_ClDummy) : Client()->IntraGameTick(g_Config.m_ClDummy));
 
 			if(i == m_Snap.m_LocalClientId || (PredictDummy() && i == m_aLocalIds[!g_Config.m_ClDummy]))
