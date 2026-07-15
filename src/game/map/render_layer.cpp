@@ -381,8 +381,17 @@ void CRenderLayerTile::RenderTileBorder(const ColorRGBA &Color, int BorderX0, in
 	int Y1 = std::min((int)Visuals.m_Height, BorderY1);
 	int X1 = std::min((int)Visuals.m_Width, BorderX1);
 
+	// Cap border scale so extreme zoom-out cannot emit multi-thousand-tile scales
+	constexpr float MaxBorderScale = 64.0f;
+	auto ClampBorderScale = [](vec2 Scale) {
+		Scale.x = std::min(std::abs(Scale.x), MaxBorderScale) * (Scale.x < 0 ? -1.0f : 1.0f);
+		Scale.y = std::min(std::abs(Scale.y), MaxBorderScale) * (Scale.y < 0 ? -1.0f : 1.0f);
+		return Scale;
+	};
+
 	// corners
 	auto DrawCorner = [&](vec2 Offset, vec2 Scale, CTileLayerVisuals::CTileVisual &Visual) {
+		Scale = ClampBorderScale(Scale);
 		Offset *= 32.0f;
 		Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color, (offset_ptr_size)Visual.IndexBufferByteOffset(), Offset, Scale, 1);
 	};
@@ -426,6 +435,7 @@ void CRenderLayerTile::RenderTileBorder(const ColorRGBA &Color, int BorderX0, in
 
 	// borders
 	auto DrawBorder = [&](vec2 Offset, vec2 Scale, CTileLayerVisuals::CTileVisual &StartVisual, CTileLayerVisuals::CTileVisual &EndVisual) {
+		Scale = ClampBorderScale(Scale);
 		unsigned int DrawNum = ((EndVisual.IndexBufferByteOffset() - StartVisual.IndexBufferByteOffset()) / (sizeof(unsigned int) * 6)) + (EndVisual.DoDraw() ? 1lu : 0lu);
 		offset_ptr_size pOffset = (offset_ptr_size)StartVisual.IndexBufferByteOffset();
 		Offset *= 32.0f;
@@ -482,6 +492,12 @@ void CRenderLayerTile::RenderKillTileBorder(const ColorRGBA &Color)
 	float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
 	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
 
+	// Guard against invalid / infinite screen (bad zoom or center)
+	if(!std::isfinite(ScreenX0) || !std::isfinite(ScreenY0) || !std::isfinite(ScreenX1) || !std::isfinite(ScreenY1))
+		return;
+	if(ScreenX1 <= ScreenX0 || ScreenY1 <= ScreenY0)
+		return;
+
 	int BorderY0 = std::floor(ScreenY0 / 32);
 	int BorderX0 = std::floor(ScreenX0 / 32);
 	int BorderY1 = std::ceil(ScreenY1 / 32);
@@ -492,12 +508,26 @@ void CRenderLayerTile::RenderKillTileBorder(const ColorRGBA &Color)
 	if(!Visuals.m_BorderKillTile.DoDraw())
 		return;
 
-	BorderX0 = std::clamp(BorderX0, -300, (int)Visuals.m_Width + 299);
-	BorderY0 = std::clamp(BorderY0, -300, (int)Visuals.m_Height + 299);
-	BorderX1 = std::clamp(BorderX1, -300, (int)Visuals.m_Width + 299);
-	BorderY1 = std::clamp(BorderY1, -300, (int)Visuals.m_Height + 299);
+	// Keep border geometry close to the map (original intent: ~300 tiles margin).
+	// Tight clamp prevents huge Scale values that flood the GPU with dense death-texels when zoomed out.
+	const int Margin = BorderRenderDistance + 32; // slightly past the freeview margin
+	BorderX0 = std::clamp(BorderX0, -Margin, (int)Visuals.m_Width + Margin - 1);
+	BorderY0 = std::clamp(BorderY0, -Margin, (int)Visuals.m_Height + Margin - 1);
+	BorderX1 = std::clamp(BorderX1, -Margin + 1, (int)Visuals.m_Width + Margin);
+	BorderY1 = std::clamp(BorderY1, -Margin + 1, (int)Visuals.m_Height + Margin);
+
+	// Cap scale so one border draw never covers more than MaxScale tiles (avoids full-screen red sea + FPS collapse)
+	constexpr float MaxScale = 64.0f;
+	auto ClampScale = [](vec2 Scale) {
+		Scale.x = std::clamp(Scale.x, 0.0f, MaxScale);
+		Scale.y = std::clamp(Scale.y, 0.0f, MaxScale);
+		return Scale;
+	};
 
 	auto DrawKillBorder = [&](vec2 Offset, vec2 Scale) {
+		Scale = ClampScale(Scale);
+		if(Scale.x <= 0.0f || Scale.y <= 0.0f)
+			return;
 		offset_ptr_size pOffset = (offset_ptr_size)Visuals.m_BorderKillTile.IndexBufferByteOffset();
 		Offset *= 32.0f;
 		Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color, pOffset, Offset, Scale, 1);

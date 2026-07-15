@@ -15,6 +15,7 @@
 #include <game/localization.h>
 #include <game/mapitems.h>
 
+#include <cmath>
 #include <limits>
 
 CCamera::CCamera()
@@ -364,10 +365,17 @@ void CCamera::OnRender()
 		m_CameraSmoothing = false;
 
 	// Large jumps (teleports / extreme coords): skip smooth path to avoid freezes
+	const float CenterDelta = length(m_Center - m_PrevCenter);
 	const bool LargeCenterJump = g_Config.m_ClProtectLargeMove &&
-				     length(m_Center - m_PrevCenter) > CCamera::LARGE_MOVE_THRESHOLD;
+				     (CenterDelta > CCamera::LARGE_MOVE_THRESHOLD ||
+					     !std::isfinite(m_Center.x) || !std::isfinite(m_Center.y) ||
+					     !std::isfinite(m_PrevCenter.x) || !std::isfinite(m_PrevCenter.y));
 	if(LargeCenterJump)
 	{
+		if(!std::isfinite(m_Center.x) || !std::isfinite(m_Center.y))
+			m_Center = m_PrevCenter;
+		if(!std::isfinite(m_Center.x) || !std::isfinite(m_Center.y))
+			m_Center = vec2(0.0f, 0.0f);
 		m_CameraSmoothing = false;
 		m_CameraSmoothingCenter = m_Center;
 		m_CameraSmoothingTarget = m_Center;

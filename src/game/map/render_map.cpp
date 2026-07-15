@@ -457,6 +457,32 @@ void CRenderMap::RenderTileRectangle(int RectX, int RectY, int RectW, int RectH,
 	int EndY = (int)(ScreenY1 / Scale) + 1;
 	int EndX = (int)(ScreenX1 / Scale) + 1;
 
+	// Extreme zoom-out: per-tile loop can cover 100k+ cells and freeze the client.
+	// Cap to a sane on-screen tile budget (~256x256) centered on the view.
+	constexpr int MaxTileSpan = 256;
+	if(EndX - StartX > MaxTileSpan)
+	{
+		const int Mid = StartX + (EndX - StartX) / 2;
+		StartX = Mid - MaxTileSpan / 2;
+		EndX = Mid + MaxTileSpan / 2;
+	}
+	if(EndY - StartY > MaxTileSpan)
+	{
+		const int Mid = StartY + (EndY - StartY) / 2;
+		StartY = Mid - MaxTileSpan / 2;
+		EndY = Mid + MaxTileSpan / 2;
+	}
+	// Sub-pixel tiles: skip dense death fill (unreadable, kills FPS)
+	if(FinalTileSize < 1.5f)
+	{
+		if(Graphics()->HasTextureArraysSupport())
+			Graphics()->QuadsTex3DEnd();
+		else
+			Graphics()->QuadsEnd();
+		Graphics()->MapScreen(ScreenX0, ScreenY0, ScreenX1, ScreenY1);
+		return;
+	}
+
 	// adjust the texture shift according to mipmap level
 	float TexSize = 1024.0f;
 	float Frac = (1.25f / TexSize) * (1 / FinalTilesetScale);
