@@ -363,7 +363,18 @@ void CCamera::OnRender()
 	if(m_CameraSmoothing && SpecId != m_PrevSpecId)
 		m_CameraSmoothing = false;
 
-	if(GameClient()->m_Snap.m_SpecInfo.m_Active &&
+	// Large jumps (teleports / extreme coords): skip smooth path to avoid freezes
+	const bool LargeCenterJump = g_Config.m_ClProtectLargeMove &&
+				     length(m_Center - m_PrevCenter) > CCamera::LARGE_MOVE_THRESHOLD;
+	if(LargeCenterJump)
+	{
+		m_CameraSmoothing = false;
+		m_CameraSmoothingCenter = m_Center;
+		m_CameraSmoothingTarget = m_Center;
+		m_CenterBeforeSmoothing = m_Center;
+	}
+
+	if(!LargeCenterJump && GameClient()->m_Snap.m_SpecInfo.m_Active &&
 		(SpecId != m_PrevSpecId ||
 			(m_CameraSmoothing && m_CameraSmoothingTarget != m_Center)) && // the target is moving during camera smoothing
 		!(!m_WasSpectating && m_Center != m_PrevCenter) && // dont smooth when starting to spectate

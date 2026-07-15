@@ -61,6 +61,8 @@ private:
 
 public:
 	static constexpr float ZOOM_STEP = 0.866025f;
+	// Pixel distance: jumps larger than this skip camera smoothing (see ClProtectLargeMove)
+	static constexpr float LARGE_MOVE_THRESHOLD = 32.0f * 100.0f;
 
 	/**
 	 * Convert zoom steps to zoom value

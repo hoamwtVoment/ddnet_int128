@@ -2800,6 +2800,9 @@ void CGameClient::OnPredict()
 			if(!m_Snap.m_aCharacters[i].m_Active || i == m_Snap.m_LocalClientId || !m_aLastActive[i])
 				continue;
 			vec2 NewPos = (m_PredictedTick == Client()->PredGameTick(g_Config.m_ClDummy)) ? m_aClients[i].m_Predicted.m_Pos : m_aClients[i].m_PrevPredicted.m_Pos;
+			// Large teleports: skip antiping smooth (can hang / NaN with extreme deltas)
+			if(g_Config.m_ClProtectLargeMove && length(m_aLastPos[i] - NewPos) > CCamera::LARGE_MOVE_THRESHOLD)
+				continue;
 			vec2 PredErr = (m_aLastPos[i] - NewPos) / (float)std::min(Client()->GetPredictionTime(), 200);
 			if(in_range(length(PredErr), 0.05f, 5.f))
 			{

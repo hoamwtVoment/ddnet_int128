@@ -1944,6 +1944,16 @@ void CMenus::RenderSettingsAppearance(CUIRect MainView)
 		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_ClShowhudPlayerSpeed, Localize("Show player speed"), &g_Config.m_ClShowhudPlayerSpeed, &RightView, LineSize);
 		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_ClShowhudPlayerAngle, Localize("Show player target angle"), &g_Config.m_ClShowhudPlayerAngle, &RightView, LineSize);
 
+		// Large teleports / out-of-range positions (e.g. int128 world) can hang smooth camera/prediction
+		{
+			CUIRect ProtectButton;
+			RightView.HSplitTop(LineSize, &ProtectButton, &RightView);
+			if(DoButton_CheckBox(&g_Config.m_ClProtectLargeMove, Localize("Protect against large position jumps"), g_Config.m_ClProtectLargeMove, &ProtectButton))
+				g_Config.m_ClProtectLargeMove ^= 1;
+			GameClient()->m_Tooltips.DoToolTip(&g_Config.m_ClProtectLargeMove, &ProtectButton,
+				Localize("When enabled, large teleports or coordinate jumps skip camera smoothing and prediction correction to prevent the client from freezing."));
+		}
+
 		// Freeze bar settings
 		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_ClShowFreezeBars, Localize("Show freeze bars"), &g_Config.m_ClShowFreezeBars, &RightView, LineSize);
 		RightView.HSplitTop(LineSize * 2.0f, &Button, &RightView);
