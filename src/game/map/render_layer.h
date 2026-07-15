@@ -217,7 +217,7 @@ protected:
 
 	void RenderTileLayer(const ColorRGBA &Color, const CRenderLayerParams &Params, CTileLayerVisuals *pTileLayerVisuals = nullptr);
 	void RenderTileBorder(const ColorRGBA &Color, int BorderX0, int BorderY0, int BorderX1, int BorderY1, CTileLayerVisuals *pTileLayerVisuals);
-	void RenderKillTileBorder(const ColorRGBA &Color);
+	void RenderKillTileBorder(const ColorRGBA &Color, const CRenderLayerParams &Params);
 
 	std::optional<CRenderLayerTile::CTileLayerVisuals> m_VisualTiles;
 	CMapItemLayerTilemap *m_pLayerTilemap;

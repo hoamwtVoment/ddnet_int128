@@ -43,11 +43,12 @@ public:
 
 	void SetHoTileTeleEnabled(bool Enabled) { m_HoTileTeleEnabled = Enabled; }
 
-	bool CheckPoint(wcoord x, wcoord y) const { return IsSolid(round_to_int(x), round_to_int(y)); }
+	// Use int64 pixel coords — never clamp huge positions into the map via int32 overflow.
+	bool CheckPoint(wcoord x, wcoord y) const;
 	bool CheckPoint(wvec2 Pos) const { return CheckPoint(Pos.x, Pos.y); }
 	bool CheckPoint(float x, float y) const { return CheckPoint(wcoord(x), wcoord(y)); }
 	bool CheckPoint(vec2 Pos) const { return CheckPoint(wcoord(Pos.x), wcoord(Pos.y)); }
-	int GetCollisionAt(wcoord x, wcoord y) const { return GetTile(round_to_int(x), round_to_int(y)); }
+	int GetCollisionAt(wcoord x, wcoord y) const;
 	int GetCollisionAt(float x, float y) const { return GetCollisionAt(wcoord(x), wcoord(y)); }
 	int GetWidth() const { return m_Width; }
 	int GetHeight() const { return m_Height; }
@@ -91,6 +92,8 @@ public:
 	}
 
 	int GetTile(int x, int y) const;
+	// Pixel-space lookup without int32 wrap; outside the map returns 0 (air void).
+	int GetTilePixels(int64_t Px, int64_t Py) const;
 	int GetFrontTile(int x, int y) const;
 	int Entity(int x, int y, int Layer) const;
 	int GetPureMapIndex(wcoord x, wcoord y) const;

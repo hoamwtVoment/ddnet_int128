@@ -336,18 +336,43 @@ int CCollision::GetMoveRestrictions(CALLBACK_SWITCHACTIVE pfnSwitchActive, void 
 	return Restrictions;
 }
 
-int CCollision::GetTile(int x, int y) const
+int CCollision::GetTilePixels(int64_t Px, int64_t Py) const
 {
 	if(!m_pTiles)
 		return 0;
 
-	int Nx = std::clamp(x / 32, 0, m_Width - 1);
-	int Ny = std::clamp(y / 32, 0, m_Height - 1);
+	// Outside the real map = empty void. Do NOT clamp into the map (int32 wrap used to
+	// teleport collision into map tiles at far-lands coordinates).
+	if(Px < 0 || Py < 0 || Px >= (int64_t)m_Width * 32 || Py >= (int64_t)m_Height * 32)
+		return 0;
+
+	const int Nx = (int)(Px / 32);
+	const int Ny = (int)(Py / 32);
 	const int Index = Ny * m_Width + Nx;
 
 	if(m_pTiles[Index].m_Index >= TILE_SOLID && m_pTiles[Index].m_Index <= TILE_NOLASER)
 		return m_pTiles[Index].m_Index;
 	return 0;
+}
+
+int CCollision::GetTile(int x, int y) const
+{
+	// Prefer GetTilePixels via wcoord CheckPoint for large worlds; this int path
+	// is only correct inside int32 pixel range.
+	if(x < 0 || y < 0 || x >= m_Width * 32 || y >= m_Height * 32)
+		return 0;
+	return GetTilePixels(x, y);
+}
+
+bool CCollision::CheckPoint(wcoord x, wcoord y) const
+{
+	const int Index = GetTilePixels(x.round_to_int64(), y.round_to_int64());
+	return Index == TILE_SOLID || Index == TILE_NOHOOK;
+}
+
+int CCollision::GetCollisionAt(wcoord x, wcoord y) const
+{
+	return GetTilePixels(x.round_to_int64(), y.round_to_int64());
 }
 
 // TODO: rewrite this smarter!
@@ -360,17 +385,14 @@ int CCollision::IntersectLine(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutCollision, wvec
 	{
 		float a = i / (float)End;
 		wvec2 Pos = mix(Pos0, Pos1, a);
-		// Temporary position for checking collision
-		int ix = round_to_int(Pos.x);
-		int iy = round_to_int(Pos.y);
-
-		if(CheckPoint(ix, iy))
+		// Use wcoord path (int64) — round_to_int would wrap far-lands pixels into the map
+		if(CheckPoint(Pos))
 		{
 			if(pOutCollision)
 				*pOutCollision = Pos;
 			if(pOutBeforeCollision)
 				*pOutBeforeCollision = Last;
-			return GetCollisionAt(ix, iy);
+			return GetCollisionAt(Pos.x, Pos.y);
 		}
 
 		Last = Pos;
@@ -393,9 +415,12 @@ int CCollision::IntersectLineTeleHook(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutCollisi
 	{
 		float a = i / (float)End;
 		wvec2 Pos = mix(Pos0, Pos1, a);
-		// Temporary position for checking collision
-		int ix = round_to_int(Pos.x);
-		int iy = round_to_int(Pos.y);
+		const int64_t ix64 = Pos.x.round_to_int64();
+		const int64_t iy64 = Pos.y.round_to_int64();
+		// int pixels only valid inside map; outside void skips through/hook-blocker tile logic
+		const bool InMap = ix64 >= 0 && iy64 >= 0 && ix64 < (int64_t)m_Width * 32 && iy64 < (int64_t)m_Height * 32;
+		const int ix = InMap ? (int)ix64 : 0;
+		const int iy = InMap ? (int)iy64 : 0;
 
 		int Index = GetPureMapIndex(Pos);
 		if(pTeleNr && m_HoTileTeleEnabled)
@@ -417,12 +442,12 @@ int CCollision::IntersectLineTeleHook(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutCollisi
 		}
 
 		int Hit = 0;
-		if(CheckPoint(ix, iy))
+		if(CheckPoint(Pos))
 		{
-			if(!IsThrough(ix, iy, dx, dy, Pos0, Pos1))
-				Hit = GetCollisionAt(ix, iy);
+			if(!InMap || !IsThrough(ix, iy, dx, dy, Pos0, Pos1))
+				Hit = GetCollisionAt(Pos.x, Pos.y);
 		}
-		else if(IsHookBlocker(ix, iy, Pos0, Pos1))
+		else if(InMap && IsHookBlocker(ix, iy, Pos0, Pos1))
 		{
 			Hit = TILE_NOHOOK;
 		}
@@ -453,9 +478,6 @@ int CCollision::IntersectLineTeleWeapon(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutColli
 	{
 		float a = i / (float)End;
 		wvec2 Pos = mix(Pos0, Pos1, a);
-		// Temporary position for checking collision
-		int ix = round_to_int(Pos.x);
-		int iy = round_to_int(Pos.y);
 
 		int Index = GetPureMapIndex(Pos);
 		if(pTeleNr && m_HoTileTeleEnabled)
@@ -476,13 +498,13 @@ int CCollision::IntersectLineTeleWeapon(wvec2 Pos0, wvec2 Pos1, wvec2 *pOutColli
 			return TILE_TELEINWEAPON;
 		}
 
-		if(CheckPoint(ix, iy))
+		if(CheckPoint(Pos))
 		{
 			if(pOutCollision)
 				*pOutCollision = Pos;
 			if(pOutBeforeCollision)
 				*pOutBeforeCollision = Last;
-			return GetCollisionAt(ix, iy);
+			return GetCollisionAt(Pos.x, Pos.y);
 		}
 
 		Last = Pos;

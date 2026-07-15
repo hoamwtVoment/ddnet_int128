@@ -52,8 +52,11 @@ bool CEntity::NetworkClippedLine(int SnappingClient, wvec2 StartPos, wvec2 EndPo
 
 bool CEntity::GameLayerClipped(wvec2 CheckPos)
 {
-	return round_to_int(CheckPos.x) / 32 < -200 || round_to_int(CheckPos.x) / 32 > GameServer()->Collision()->GetWidth() + 200 ||
-	       round_to_int(CheckPos.y) / 32 < -200 || round_to_int(CheckPos.y) / 32 > GameServer()->Collision()->GetHeight() + 200;
+	// int64 tiles — int32 round_to_int wrapped far-lands positions back onto the map
+	const int64_t Tx = CheckPos.x.to_int64() / 32;
+	const int64_t Ty = CheckPos.y.to_int64() / 32;
+	return Tx < -200 || Tx > GameServer()->Collision()->GetWidth() + 200 ||
+	       Ty < -200 || Ty > GameServer()->Collision()->GetHeight() + 200;
 }
 
 bool CEntity::GetNearestAirPos(wvec2 Pos, wvec2 PrevPos, wvec2 *pOutPos)
