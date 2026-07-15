@@ -301,10 +301,37 @@ void CRenderLayerTile::RenderTileLayer(const ColorRGBA &Color, const CRenderLaye
 	float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
 	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
 
-	int ScreenRectY0 = std::floor(ScreenY0 / 32);
-	int ScreenRectX0 = std::floor(ScreenX0 / 32);
-	int ScreenRectY1 = std::ceil(ScreenY1 / 32);
-	int ScreenRectX1 = std::ceil(ScreenX1 / 32);
+	// Saturated tile indices — avoid int overflow UB at extreme cameras (hard-draw path).
+	auto ScreenToTile = [](float Px, bool Ceil) -> int {
+		double T = (double)Px / 32.0;
+		if(!std::isfinite(T))
+			return 0;
+		T = Ceil ? std::ceil(T) : std::floor(T);
+		if(T > 2147483646.0)
+			return 2147483646;
+		if(T < -2147483647.0)
+			return -2147483647;
+		return (int)T;
+	};
+
+	int ScreenRectX0 = ScreenToTile(ScreenX0, false);
+	int ScreenRectY0 = ScreenToTile(ScreenY0, false);
+	int ScreenRectX1 = ScreenToTile(ScreenX1, true);
+	int ScreenRectY1 = ScreenToTile(ScreenY1, true);
+
+	// Float collapse (ScreenX0==ScreenX1) still counts as "outside" if center is off-map.
+	const bool ScreenCollapsed = !std::isfinite(ScreenX0) || !std::isfinite(ScreenX1) || ScreenX1 <= ScreenX0 || ScreenY1 <= ScreenY0;
+	if(ScreenCollapsed && std::isfinite(Params.m_Center.x) && std::isfinite(Params.m_Center.y))
+	{
+		const int Cx = ScreenToTile(Params.m_Center.x, false);
+		const int Cy = ScreenToTile(Params.m_Center.y, false);
+		// ~half a normal view in tiles so border Scale can reach the camera
+		const int Half = 40;
+		ScreenRectX0 = Cx - Half;
+		ScreenRectX1 = Cx + Half;
+		ScreenRectY0 = Cy - Half;
+		ScreenRectY1 = Cy + Half;
+	}
 
 	if(IsVisibleInClipRegion(m_LayerClip))
 	{
@@ -367,7 +394,7 @@ void CRenderLayerTile::RenderTileLayer(const ColorRGBA &Color, const CRenderLaye
 		}
 	}
 
-	if(Params.m_RenderTileBorder && (ScreenRectX1 > (int)Visuals.m_Width || ScreenRectY1 > (int)Visuals.m_Height || ScreenRectX0 < 0 || ScreenRectY0 < 0))
+	if(Params.m_RenderTileBorder && (ScreenRectX1 > (int)Visuals.m_Width || ScreenRectY1 > (int)Visuals.m_Height || ScreenRectX0 < 0 || ScreenRectY0 < 0 || ScreenCollapsed))
 	{
 		RenderTileBorder(Color, ScreenRectX0, ScreenRectY0, ScreenRectX1, ScreenRectY1, &Visuals);
 	}
@@ -382,17 +409,13 @@ void CRenderLayerTile::RenderTileBorder(const ColorRGBA &Color, int BorderX0, in
 	int Y1 = std::min((int)Visuals.m_Height, BorderY1);
 	int X1 = std::min((int)Visuals.m_Width, BorderX1);
 
-	// Cap border scale so extreme zoom-out cannot emit multi-thousand-tile scales
-	constexpr float MaxBorderScale = 64.0f;
-	auto ClampBorderScale = [](vec2 Scale) {
-		Scale.x = std::min(std::abs(Scale.x), MaxBorderScale) * (Scale.x < 0 ? -1.0f : 1.0f);
-		Scale.y = std::min(std::abs(Scale.y), MaxBorderScale) * (Scale.y < 0 ? -1.0f : 1.0f);
-		return Scale;
-	};
-
-	// corners
+	// Vanilla hard draw: do NOT clamp border Scale. Far cameras need huge Scale so
+	// edge tiles stretch from the map edge all the way across the viewport (the
+	// classic gray + brown bar look). A small MaxBorderScale leaves the stretch
+	// stuck near the map while the camera is empty.
 	auto DrawCorner = [&](vec2 Offset, vec2 Scale, CTileLayerVisuals::CTileVisual &Visual) {
-		Scale = ClampBorderScale(Scale);
+		if(!std::isfinite(Scale.x) || !std::isfinite(Scale.y) || Scale.x == 0.0f || Scale.y == 0.0f)
+			return;
 		Offset *= 32.0f;
 		Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color, (offset_ptr_size)Visual.IndexBufferByteOffset(), Offset, Scale, 1);
 	};
@@ -436,7 +459,8 @@ void CRenderLayerTile::RenderTileBorder(const ColorRGBA &Color, int BorderX0, in
 
 	// borders
 	auto DrawBorder = [&](vec2 Offset, vec2 Scale, CTileLayerVisuals::CTileVisual &StartVisual, CTileLayerVisuals::CTileVisual &EndVisual) {
-		Scale = ClampBorderScale(Scale);
+		if(!std::isfinite(Scale.x) || !std::isfinite(Scale.y) || Scale.x == 0.0f || Scale.y == 0.0f)
+			return;
 		unsigned int DrawNum = ((EndVisual.IndexBufferByteOffset() - StartVisual.IndexBufferByteOffset()) / (sizeof(unsigned int) * 6)) + (EndVisual.DoDraw() ? 1lu : 0lu);
 		offset_ptr_size pOffset = (offset_ptr_size)StartVisual.IndexBufferByteOffset();
 		Offset *= 32.0f;
@@ -447,10 +471,10 @@ void CRenderLayerTile::RenderTileBorder(const ColorRGBA &Color, int BorderX0, in
 	{
 		if(BorderX1 > (int)Visuals.m_Width)
 		{
-			// Draw right border
+			// Draw right border — Scale.x = distance in tiles from map edge to camera
 			DrawBorder(
 				vec2(Visuals.m_Width, 0),
-				vec2(BorderX1 - Visuals.m_Width, 1.f),
+				vec2((float)((int64_t)BorderX1 - (int64_t)Visuals.m_Width), 1.f),
 				Visuals.m_vBorderRight[Y0], Visuals.m_vBorderRight[Y1 - 1]);
 		}
 		if(BorderX0 < 0)
@@ -458,7 +482,7 @@ void CRenderLayerTile::RenderTileBorder(const ColorRGBA &Color, int BorderX0, in
 			// Draw left border
 			DrawBorder(
 				vec2(0, 0),
-				vec2(std::abs(BorderX0), 1),
+				vec2((float)std::abs((int64_t)BorderX0), 1),
 				Visuals.m_vBorderLeft[Y0], Visuals.m_vBorderLeft[Y1 - 1]);
 		}
 	}
@@ -470,7 +494,7 @@ void CRenderLayerTile::RenderTileBorder(const ColorRGBA &Color, int BorderX0, in
 			// Draw top border
 			DrawBorder(
 				vec2(0, 0),
-				vec2(1, std::abs(BorderY0)),
+				vec2(1, (float)std::abs((int64_t)BorderY0)),
 				Visuals.m_vBorderTop[X0], Visuals.m_vBorderTop[X1 - 1]);
 		}
 		if(BorderY1 > (int)Visuals.m_Height)
@@ -478,7 +502,7 @@ void CRenderLayerTile::RenderTileBorder(const ColorRGBA &Color, int BorderX0, in
 			// Draw bottom border
 			DrawBorder(
 				vec2(0, Visuals.m_Height),
-				vec2(1, BorderY1 - Visuals.m_Height),
+				vec2(1, (float)((int64_t)BorderY1 - (int64_t)Visuals.m_Height)),
 				Visuals.m_vBorderBottom[X0], Visuals.m_vBorderBottom[X1 - 1]);
 		}
 	}
@@ -501,66 +525,64 @@ void CRenderLayerTile::RenderKillTileBorder(const ColorRGBA &Color)
 	if(ScreenX1 <= ScreenX0 || ScreenY1 <= ScreenY0)
 		return;
 
-	int BorderY0 = std::floor(ScreenY0 / 32);
-	int BorderX0 = std::floor(ScreenX0 / 32);
-	int BorderY1 = std::ceil(ScreenY1 / 32);
-	int BorderX1 = std::ceil(ScreenX1 / 32);
+	// Use int64 for far cameras so tile indices past INT_MAX still stretch correctly
+	const int64_t BorderY0 = (int64_t)std::floor((double)ScreenY0 / 32.0);
+	const int64_t BorderX0 = (int64_t)std::floor((double)ScreenX0 / 32.0);
+	const int64_t BorderY1 = (int64_t)std::ceil((double)ScreenY1 / 32.0);
+	const int64_t BorderX1 = (int64_t)std::ceil((double)ScreenX1 / 32.0);
 
-	if(BorderX0 >= -BorderRenderDistance && BorderY0 >= -BorderRenderDistance && BorderX1 <= (int)Visuals.m_Width + BorderRenderDistance && BorderY1 <= (int)Visuals.m_Height + BorderRenderDistance)
+	const int64_t MapW = Visuals.m_Width;
+	const int64_t MapH = Visuals.m_Height;
+	const int64_t Safe = BorderRenderDistance;
+
+	if(BorderX0 >= -Safe && BorderY0 >= -Safe && BorderX1 <= MapW + Safe && BorderY1 <= MapH + Safe)
 		return;
 	if(!Visuals.m_BorderKillTile.DoDraw())
 		return;
 
-	// Keep border geometry close to the map (original intent: ~300 tiles margin).
-	const int Margin = BorderRenderDistance + 32;
-	BorderX0 = std::clamp(BorderX0, -Margin, (int)Visuals.m_Width + Margin - 1);
-	BorderY0 = std::clamp(BorderY0, -Margin, (int)Visuals.m_Height + Margin - 1);
-	BorderX1 = std::clamp(BorderX1, -Margin + 1, (int)Visuals.m_Width + Margin);
-	BorderY1 = std::clamp(BorderY1, -Margin + 1, (int)Visuals.m_Height + Margin);
-
-	constexpr float MaxScale = 64.0f;
-	auto ClampScale = [](vec2 Scale) {
-		Scale.x = std::clamp(Scale.x, 0.0f, MaxScale);
-		Scale.y = std::clamp(Scale.y, 0.0f, MaxScale);
-		return Scale;
-	};
-
-	auto DrawKillBorder = [&](vec2 Offset, vec2 Scale) {
-		Scale = ClampScale(Scale);
-		if(Scale.x <= 0.0f || Scale.y <= 0.0f)
+	// Vanilla hard draw: no margin/scale clamp — stretch death from map kill band to the camera.
+	auto DrawKillBorder = [&](vec2 OffsetTiles, vec2 ScaleTiles) {
+		if(!std::isfinite(ScaleTiles.x) || !std::isfinite(ScaleTiles.y) || ScaleTiles.x <= 0.0f || ScaleTiles.y <= 0.0f)
 			return;
 		offset_ptr_size pOffset = (offset_ptr_size)Visuals.m_BorderKillTile.IndexBufferByteOffset();
-		Offset *= 32.0f;
-		Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color, pOffset, Offset, Scale, 1);
+		Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color, pOffset, OffsetTiles * 32.0f, ScaleTiles, 1);
+	};
+
+	auto I64ToF = [](int64_t V) -> float {
+		return (float)V; // may lose precision far out; still hard-draws like vanilla float path
 	};
 
 	// Draw left kill tile border
-	if(BorderX0 < -BorderRenderDistance)
+	if(BorderX0 < -Safe)
 	{
 		DrawKillBorder(
-			vec2(BorderX0, BorderY0),
-			vec2(-BorderRenderDistance - BorderX0, BorderY1 - BorderY0));
+			vec2(I64ToF(BorderX0), I64ToF(BorderY0)),
+			vec2(I64ToF(-Safe - BorderX0), I64ToF(BorderY1 - BorderY0)));
 	}
 	// Draw top kill tile border
-	if(BorderY0 < -BorderRenderDistance)
+	if(BorderY0 < -Safe)
 	{
+		const int64_t X0 = std::max(BorderX0, -Safe);
+		const int64_t X1 = std::min(BorderX1, MapW + Safe);
 		DrawKillBorder(
-			vec2(std::max(BorderX0, -BorderRenderDistance), BorderY0),
-			vec2(std::min(BorderX1, (int)Visuals.m_Width + BorderRenderDistance) - std::max(BorderX0, -BorderRenderDistance), -BorderRenderDistance - BorderY0));
+			vec2(I64ToF(X0), I64ToF(BorderY0)),
+			vec2(I64ToF(X1 - X0), I64ToF(-Safe - BorderY0)));
 	}
 	// Draw right kill tile border
-	if(BorderX1 > (int)Visuals.m_Width + BorderRenderDistance)
+	if(BorderX1 > MapW + Safe)
 	{
 		DrawKillBorder(
-			vec2(Visuals.m_Width + BorderRenderDistance, BorderY0),
-			vec2(BorderX1 - (Visuals.m_Width + BorderRenderDistance), BorderY1 - BorderY0));
+			vec2(I64ToF(MapW + Safe), I64ToF(BorderY0)),
+			vec2(I64ToF(BorderX1 - (MapW + Safe)), I64ToF(BorderY1 - BorderY0)));
 	}
 	// Draw bottom kill tile border
-	if(BorderY1 > (int)Visuals.m_Height + BorderRenderDistance)
+	if(BorderY1 > MapH + Safe)
 	{
+		const int64_t X0 = std::max(BorderX0, -Safe);
+		const int64_t X1 = std::min(BorderX1, MapW + Safe);
 		DrawKillBorder(
-			vec2(std::max(BorderX0, -BorderRenderDistance), Visuals.m_Height + BorderRenderDistance),
-			vec2(std::min(BorderX1, (int)Visuals.m_Width + BorderRenderDistance) - std::max(BorderX0, -BorderRenderDistance), BorderY1 - (Visuals.m_Height + BorderRenderDistance)));
+			vec2(I64ToF(X0), I64ToF(MapH + Safe)),
+			vec2(I64ToF(X1 - X0), I64ToF(BorderY1 - (MapH + Safe))));
 	}
 }
 
