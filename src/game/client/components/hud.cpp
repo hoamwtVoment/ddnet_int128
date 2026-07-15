@@ -22,6 +22,7 @@
 #include <game/client/components/scoreboard.h>
 #include <game/client/gameclient.h>
 #include <game/client/prediction/entities/character.h>
+#include <game/gamecore.h>
 #include <game/layers.h>
 #include <game/localization.h>
 
@@ -1453,8 +1454,12 @@ CHud::CMovementInformation CHud::GetMovementInformation(int ClientId, int Conn) 
 		const CNetObj_Character *pCurChar = &GameClient()->m_Snap.m_aCharacters[ClientId].m_Cur;
 		const float IntraTick = Client()->IntraGameTick(Conn);
 
+		// Full int64 pixel pos (lo+hi). Display uses float tiles (mantissa limits at extreme coords).
+		const wvec2 PrevPos(wcoord(CharacterNetPosX(pPrevChar)), wcoord(CharacterNetPosY(pPrevChar)));
+		const wvec2 CurPos(wcoord(CharacterNetPosX(pCurChar)), wcoord(CharacterNetPosY(pCurChar)));
+		const wvec2 Mixed = mix(PrevPos, CurPos, IntraTick);
 		// To make the player position relative to blocks we need to divide by the block size
-		Out.m_Pos = mix(vec2(pPrevChar->m_X, pPrevChar->m_Y), vec2(pCurChar->m_X, pCurChar->m_Y), IntraTick) / 32.0f;
+		Out.m_Pos = vec2(static_cast<float>(Mixed.x.to_double() / 32.0), static_cast<float>(Mixed.y.to_double() / 32.0));
 
 		const vec2 Vel = mix(vec2(pPrevChar->m_VelX, pPrevChar->m_VelY), vec2(pCurChar->m_VelX, pCurChar->m_VelY), IntraTick);
 

@@ -169,6 +169,11 @@ Objects = [
 		NetIntAny("m_HookY"),
 		NetIntAny("m_HookDx"),
 		NetIntAny("m_HookDy"),
+		# High 32 bits of world pixel positions (int64 = (hi<<32)|lo).
+		NetIntAny("m_XHi"),
+		NetIntAny("m_YHi"),
+		NetIntAny("m_HookXHi"),
+		NetIntAny("m_HookYHi"),
 	]),
 
 	NetObject("Character:CharacterCore", [

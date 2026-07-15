@@ -1,6 +1,8 @@
 from datatypes import Enum, Flags, NetArray, NetBool, NetEvent, NetEventEx, NetIntAny, NetTwIntString, NetIntRange
 from datatypes import NetMessage, NetMessageEx, NetObject, NetObjectEx, NetString, NetStringHalfStrict, NetStringStrict, NetTick
 
+# int64 world positions are split into low/high 32-bit fields (m_X + m_XHi).
+
 Emotes = ["NORMAL", "PAIN", "HAPPY", "SURPRISE", "ANGRY", "BLINK"]
 PlayerFlags = ["PLAYING", "IN_MENU", "CHATTING", "SCOREBOARD", "AIM", "SPEC_CAM", "INPUT_ABSOLUTE", "INPUT_MANUAL"]
 GameFlags = ["TEAMS", "FLAGS"]
@@ -200,6 +202,11 @@ Objects = [
 		NetIntAny("m_HookY"),
 		NetIntAny("m_HookDx"),
 		NetIntAny("m_HookDy"),
+		# High 32 bits of world pixel positions (int64 = (hi<<32)|lo). Default 0 = legacy int32 range.
+		NetIntAny("m_XHi"),
+		NetIntAny("m_YHi"),
+		NetIntAny("m_HookXHi"),
+		NetIntAny("m_HookYHi"),
 	]),
 
 	NetObject("Character:CharacterCore", [

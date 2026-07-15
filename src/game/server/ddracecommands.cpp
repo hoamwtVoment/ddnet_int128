@@ -5,6 +5,7 @@
 #include <base/log.h>
 #include <base/str.h>
 #include <base/time.h>
+#include <base/world_coord.h>
 
 #include <engine/antibot.h>
 #include <engine/shared/config.h>
@@ -15,6 +16,9 @@
 #include <game/server/player.h>
 #include <game/server/save.h>
 #include <game/server/teams.h>
+
+#include <cmath>
+#include <cstdlib>
 
 void CGameContext::ConGoLeft(IConsole::IResult *pResult, void *pUserData)
 {
@@ -538,14 +542,23 @@ void CGameContext::ConHoTp(IConsole::IResult *pResult, void *pUserData)
 	wvec2 Pos;
 	if(pResult->NumArguments() >= 2)
 	{
-		float TileX = 0.0f;
-		float TileY = 0.0f;
-		if(!str_tofloat(pResult->GetString(0), &TileX) || !str_tofloat(pResult->GetString(1), &TileY))
+		// Parse as double so large tile coords stay accurate (float only has ~7 digits).
+		char *pEndX = nullptr;
+		char *pEndY = nullptr;
+		const char *pXStr = pResult->GetString(0);
+		const char *pYStr = pResult->GetString(1);
+		const double TileX = strtod(pXStr, &pEndX);
+		const double TileY = strtod(pYStr, &pEndY);
+		if(pEndX == pXStr || pEndY == pYStr || *pEndX != '\0' || *pEndY != '\0' ||
+			!std::isfinite(TileX) || !std::isfinite(TileY))
 		{
 			pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", "invalid tile coordinate");
 			return;
 		}
-		Pos = wvec2(TileX * 32.0f, TileY * 32.0f);
+		// Tile center in pixels as int64 — avoid float Tile*32 which overflows/wraps.
+		const int64_t PixelX = static_cast<int64_t>(std::llround(TileX * static_cast<double>(WORLD_TILE_SIZE)));
+		const int64_t PixelY = static_cast<int64_t>(std::llround(TileY * static_cast<double>(WORLD_TILE_SIZE)));
+		Pos = wvec2(wcoord(PixelX), wcoord(PixelY));
 	}
 	else if(pPlayer)
 	{
@@ -577,7 +590,7 @@ void CGameContext::ConHoTp(IConsole::IResult *pResult, void *pUserData)
 	}
 
 	char aBuf[128];
-	str_format(aBuf, sizeof(aBuf), "teleported client %d to tile %.2f %.2f%s", ClientId, Pos.x.to_float() / 32.0f, Pos.y.to_float() / 32.0f, ResetRace ? " and reset race" : "");
+	str_format(aBuf, sizeof(aBuf), "teleported client %d to tile %.2f %.2f%s", ClientId, Pos.x.to_double() / 32.0, Pos.y.to_double() / 32.0, ResetRace ? " and reset race" : "");
 	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", aBuf);
 }
 

@@ -73,12 +73,18 @@ public:
 		return i128_to_double(raw) / static_cast<double>(1 << FRAC_BITS);
 	}
 
-	int round_to_int() const
+	int64_t round_to_int64() const
 	{
 		const i128 half = I128(1) << (FRAC_BITS - 1);
 		if(raw >= I128(0))
-			return static_cast<int>(i128_to_int64((raw + half) >> FRAC_BITS));
-		return static_cast<int>(i128_to_int64((raw - half) >> FRAC_BITS));
+			return i128_to_int64((raw + half) >> FRAC_BITS);
+		return i128_to_int64((raw - half) >> FRAC_BITS);
+	}
+
+	// Truncates to int32 range; prefer round_to_int64() for large world coords.
+	int round_to_int() const
+	{
+		return static_cast<int>(round_to_int64());
 	}
 
 	wcoord operator+() const { return *this; }

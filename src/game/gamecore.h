@@ -13,11 +13,44 @@
 
 #include <game/teamscore.h>
 
+#include <cstdint>
 #include <set>
 #include <vector>
 
 class CCollision;
 class CTeamsCore;
+
+// CharacterCore world positions are transmitted as int64 split into lo/hi 32-bit fields.
+inline void NetPackWorldPos(int64_t Pixels, int *pLo, int *pHi)
+{
+	*pLo = static_cast<int>(static_cast<uint32_t>(Pixels));
+	*pHi = static_cast<int>(Pixels >> 32);
+}
+
+inline int64_t NetUnpackWorldPos(int Lo, int Hi)
+{
+	return static_cast<int64_t>(static_cast<uint32_t>(Lo)) | (static_cast<int64_t>(Hi) << 32);
+}
+
+inline int64_t CharacterNetPosX(const CNetObj_CharacterCore *pCore)
+{
+	return NetUnpackWorldPos(pCore->m_X, pCore->m_XHi);
+}
+
+inline int64_t CharacterNetPosY(const CNetObj_CharacterCore *pCore)
+{
+	return NetUnpackWorldPos(pCore->m_Y, pCore->m_YHi);
+}
+
+inline int64_t CharacterNetHookX(const CNetObj_CharacterCore *pCore)
+{
+	return NetUnpackWorldPos(pCore->m_HookX, pCore->m_HookXHi);
+}
+
+inline int64_t CharacterNetHookY(const CNetObj_CharacterCore *pCore)
+{
+	return NetUnpackWorldPos(pCore->m_HookY, pCore->m_HookYHi);
+}
 
 class CTuneParam
 {

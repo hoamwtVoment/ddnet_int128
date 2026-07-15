@@ -31,6 +31,11 @@ inline int round_to_int(wcoord v)
 	return v.round_to_int();
 }
 
+inline int64_t round_to_int64(wcoord v)
+{
+	return v.round_to_int64();
+}
+
 inline int round_truncate(wcoord v)
 {
 	return v.to_int();

@@ -762,8 +762,8 @@ void CGameClient::UpdatePositions()
 	else if(m_Snap.m_pLocalCharacter && m_Snap.m_pLocalPrevCharacter)
 	{
 		m_LocalCharacterPos = mix(
-			vec2(m_Snap.m_pLocalPrevCharacter->m_X, m_Snap.m_pLocalPrevCharacter->m_Y),
-			vec2(m_Snap.m_pLocalCharacter->m_X, m_Snap.m_pLocalCharacter->m_Y), Client()->IntraGameTick(g_Config.m_ClDummy));
+			vec2((float)CharacterNetPosX(m_Snap.m_pLocalPrevCharacter), (float)CharacterNetPosY(m_Snap.m_pLocalPrevCharacter)),
+			vec2((float)CharacterNetPosX(m_Snap.m_pLocalCharacter), (float)CharacterNetPosY(m_Snap.m_pLocalCharacter)), Client()->IntraGameTick(g_Config.m_ClDummy));
 	}
 
 	// spectator position
@@ -2156,7 +2156,7 @@ void CGameClient::OnNewSnapshot(bool DummySwapped)
 			{
 				m_Snap.m_pLocalCharacter = &pChr->m_Cur;
 				m_Snap.m_pLocalPrevCharacter = &pChr->m_Prev;
-				m_LocalCharacterPos = vec2(m_Snap.m_pLocalCharacter->m_X, m_Snap.m_pLocalCharacter->m_Y);
+				m_LocalCharacterPos = vec2((float)CharacterNetPosX(m_Snap.m_pLocalCharacter), (float)CharacterNetPosY(m_Snap.m_pLocalCharacter));
 			}
 		}
 		else if(Client()->SnapFindItem(IClient::SNAP_PREV, NETOBJTYPE_CHARACTER, m_Snap.m_LocalClientId))
