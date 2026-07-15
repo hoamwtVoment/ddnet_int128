@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_SERVER_ENTITIES_PROJECTILE_H
 #define GAME_SERVER_ENTITIES_PROJECTILE_H
@@ -12,17 +12,17 @@ public:
 		CGameWorld *pGameWorld,
 		int Type,
 		int Owner,
-		vec2 Pos,
-		vec2 Dir,
+		wvec2 Pos,
+		wvec2 Dir,
 		int Span,
 		bool Freeze,
 		bool Explosive,
 		int SoundImpact,
-		vec2 InitDir,
+		wvec2 InitDir,
 		int Layer = 0,
 		int Number = 0);
 
-	vec2 GetPos(float Time);
+	wvec2 GetPos(float Time);
 
 	CNetObj_Projectile NetInfoVanilla() const;
 	bool NetIsInfoLegacyCompatible() const;
@@ -36,7 +36,7 @@ public:
 	void SwapClients(int Client1, int Client2) override;
 
 private:
-	vec2 m_Direction;
+	wvec2 m_Direction;
 	int m_LifeSpan;
 	int m_Owner;
 	int m_Type;
@@ -52,7 +52,7 @@ private:
 	bool m_BelongsToPracticeTeam;
 	int m_DDRaceTeam;
 	bool m_IsSolo;
-	vec2 m_InitDir;
+	wvec2 m_InitDir;
 
 public:
 	void SetBouncing(int Value);

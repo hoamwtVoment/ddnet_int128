@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_SERVER_GAMEWORLD_H
 #define GAME_SERVER_GAMEWORLD_H
@@ -75,7 +75,7 @@ public:
 		Returns:
 			Number of entities found and added to the ents array.
 	*/
-	int FindEntities(vec2 Pos, float Radius, CEntity **ppEnts, int Max, int Type);
+	int FindEntities(wvec2 Pos, float Radius, CEntity **ppEnts, int Max, int Type);
 
 	/**
 	 * Finds the CCharacter that intersects the line.
@@ -92,7 +92,7 @@ public:
 	 *
 	 * @return Pointer to the closest hit or `nullptr` if there is no intersection.
 	 */
-	CCharacter *IntersectCharacter(vec2 Pos0, vec2 Pos1, float Radius, vec2 &NewPos, const CCharacter *pNotThis = nullptr, int CollideWith = -1, const CCharacter *pThisOnly = nullptr);
+	CCharacter *IntersectCharacter(wvec2 Pos0, wvec2 Pos1, float Radius, wvec2 &NewPos, const CCharacter *pNotThis = nullptr, int CollideWith = -1, const CCharacter *pThisOnly = nullptr);
 
 	/**
 	 * Finds the CEntity that intersects the line.
@@ -110,7 +110,7 @@ public:
 	 *
 	 * @return Pointer to the closest hit or `nullptr` if there is no intersection.
 	 */
-	CEntity *IntersectEntity(vec2 Pos0, vec2 Pos1, float Radius, int Type, vec2 &NewPos, const CEntity *pNotThis = nullptr, int CollideWith = -1, const CEntity *pThisOnly = nullptr);
+	CEntity *IntersectEntity(wvec2 Pos0, wvec2 Pos1, float Radius, int Type, wvec2 &NewPos, const CEntity *pNotThis = nullptr, int CollideWith = -1, const CEntity *pThisOnly = nullptr);
 
 	/*
 		Function: ClosestCharacter
@@ -124,7 +124,7 @@ public:
 		Returns:
 			Returns a pointer to the closest CCharacter or nullptr if no CCharacter is close enough.
 	*/
-	CCharacter *ClosestCharacter(vec2 Pos, float Radius, const CEntity *pNotThis);
+	CCharacter *ClosestCharacter(wvec2 Pos, float Radius, const CEntity *pNotThis);
 
 	/*
 		Function: InsertEntity
@@ -194,7 +194,7 @@ public:
 		Returns:
 			Returns list with all Characters on line.
 	*/
-	std::vector<CCharacter *> IntersectedCharacters(vec2 Pos0, vec2 Pos1, float Radius, const CEntity *pNotThis = nullptr);
+	std::vector<CCharacter *> IntersectedCharacters(wvec2 Pos0, wvec2 Pos1, float Radius, const CEntity *pNotThis = nullptr);
 
 	const CTuningParams *TuningList() const { return m_pTuningList; }
 	CTuningParams *TuningList() { return m_pTuningList; }

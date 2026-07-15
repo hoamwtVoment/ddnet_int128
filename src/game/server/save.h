@@ -1,4 +1,4 @@
-#ifndef GAME_SERVER_SAVE_H
+﻿#ifndef GAME_SERVER_SAVE_H
 #define GAME_SERVER_SAVE_H
 
 #include <base/vmath.h>
@@ -46,7 +46,8 @@ public:
 	int FromString(const char *pString);
 	void LoadHookedPlayer(const CSaveTeam *pTeam);
 	bool IsHooking() const;
-	vec2 GetPos() const { return m_Pos; }
+	// Save string format is float; convert to world coords at use sites
+	wvec2 GetPos() const { return wvec2(m_Pos); }
 	const char *GetName() const { return m_aName; }
 	int GetClientId() const { return m_ClientId; }
 	void SetClientId(int ClientId) { m_ClientId = ClientId; }
@@ -112,6 +113,7 @@ private:
 	int m_TuneZoneOld;
 	int m_HookHitEnabled;
 	int m_Time;
+	// Serialized as float (%f) for compatibility with existing save strings
 	vec2 m_Pos;
 	vec2 m_PrevPos;
 	int m_TeleCheckpoint;
@@ -128,7 +130,7 @@ private:
 	int m_HasTelegunGrenade;
 	int m_HasTelegunLaser;
 
-	// Core
+	// Core (float storage for save format)
 	vec2 m_CorePos;
 	vec2 m_Vel;
 	int m_ActiveWeapon;

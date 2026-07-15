@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "laser.h"
 
@@ -14,7 +14,7 @@
 #include <game/server/gamemodes/ddnet.h>
 #include <game/server/player.h>
 
-CLaser::CLaser(CGameWorld *pGameWorld, vec2 Pos, vec2 Direction, float StartEnergy, int Owner, int Type) :
+CLaser::CLaser(CGameWorld *pGameWorld, wvec2 Pos, wvec2 Direction, float StartEnergy, int Owner, int Type) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_LASER, true)
 {
 	m_Pos = Pos;
@@ -23,7 +23,7 @@ CLaser::CLaser(CGameWorld *pGameWorld, vec2 Pos, vec2 Direction, float StartEner
 	m_Dir = Direction;
 	m_Bounces = 0;
 	m_EvalTick = 0;
-	m_TelePos = vec2(0, 0);
+	m_TelePos = wvec2(0, 0);
 	m_WasTele = false;
 	m_Type = Type;
 	m_TeleportCancelled = false;
@@ -40,11 +40,11 @@ CLaser::CLaser(CGameWorld *pGameWorld, vec2 Pos, vec2 Direction, float StartEner
 	DoBounce();
 }
 
-bool CLaser::HitCharacter(vec2 From, vec2 To)
+bool CLaser::HitCharacter(wvec2 From, wvec2 To)
 {
-	static const vec2 StackedLaserShotgunBugSpeed = vec2(-2147483648.0f, -2147483648.0f);
+	static const wvec2 StackedLaserShotgunBugSpeed = wvec2(-2147483648.0f, -2147483648.0f);
 	SyncInteractState();
-	vec2 At;
+	wvec2 At;
 	CCharacter *pOwnerChar = GameServer()->GetPlayerChar(m_Owner);
 	CCharacter *pHit;
 	bool pDontHitSelf = g_Config.m_SvOldLaser || (m_Bounces == 0 && !m_WasTele);
@@ -62,7 +62,7 @@ bool CLaser::HitCharacter(vec2 From, vec2 To)
 	if(m_Type == WEAPON_SHOTGUN)
 	{
 		float Strength = TuningList()[m_TuneZone].m_ShotgunStrength;
-		const vec2 &HitPos = pHit->Core()->m_Pos;
+		const wvec2 &HitPos = pHit->Core()->m_Pos;
 		if(!g_Config.m_SvOldLaser)
 		{
 			if(m_PrevPos != HitPos)
@@ -95,7 +95,7 @@ bool CLaser::HitCharacter(vec2 From, vec2 To)
 	{
 		pHit->Unfreeze();
 	}
-	pHit->TakeDamage(vec2(0, 0), 0, m_Owner, m_Type);
+	pHit->TakeDamage(wvec2(0, 0), 0, m_Owner, m_Type);
 	return true;
 }
 
@@ -109,7 +109,7 @@ void CLaser::DoBounce()
 		return;
 	}
 	m_PrevPos = m_Pos;
-	vec2 Coltile;
+	wvec2 Coltile;
 
 	int Res;
 	int z;
@@ -118,10 +118,10 @@ void CLaser::DoBounce()
 	{
 		m_PrevPos = m_TelePos;
 		m_Pos = m_TelePos;
-		m_TelePos = vec2(0, 0);
+		m_TelePos = wvec2(0, 0);
 	}
 
-	vec2 To = m_Pos + m_Dir * m_Energy;
+	wvec2 To = m_Pos + m_Dir * m_Energy;
 
 	Res = GameServer()->Collision()->IntersectLineTeleWeapon(m_Pos, To, &Coltile, &To, &z);
 
@@ -133,8 +133,8 @@ void CLaser::DoBounce()
 			m_From = m_Pos;
 			m_Pos = To;
 
-			vec2 TempPos = m_Pos;
-			vec2 TempDir = m_Dir * 4.0f;
+			wvec2 TempPos = m_Pos;
+			wvec2 TempDir = m_Dir * 4.0f;
 
 			int f = 0;
 			if(Res == -1)
@@ -196,12 +196,12 @@ void CLaser::DoBounce()
 	if(m_Owner >= 0 && m_Energy <= 0 && !m_TeleportCancelled && pOwnerChar &&
 		pOwnerChar->IsAlive() && pOwnerChar->HasTelegunLaser() && m_Type == WEAPON_LASER)
 	{
-		vec2 PossiblePos;
+		wvec2 PossiblePos;
 		bool Found = false;
 
 		// Check if the laser hits a player.
 		bool DontHitSelf = g_Config.m_SvOldLaser || (m_Bounces == 0 && !m_WasTele);
-		vec2 At;
+		wvec2 At;
 		CCharacter *pHit;
 		if(pOwnerChar ? (!pOwnerChar->LaserHitDisabled() && m_Type == WEAPON_LASER) : g_Config.m_SvHit)
 			pHit = GameServer()->m_World.IntersectCharacter(m_Pos, To, 0.f, At, DontHitSelf ? pOwnerChar : nullptr, m_Owner);

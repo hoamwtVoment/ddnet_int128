@@ -1,4 +1,4 @@
-/* See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #ifndef GAME_SERVER_ENTITIES_DRAGGER_BEAM_H
 #define GAME_SERVER_ENTITIES_DRAGGER_BEAM_H
 
@@ -31,9 +31,9 @@ class CDraggerBeam : public CEntity
 	bool m_Active;
 
 public:
-	CDraggerBeam(CGameWorld *pGameWorld, CDragger *pDragger, vec2 Pos, float Strength, bool IgnoreWalls, int ForClientId, int Layer, int Number);
+	CDraggerBeam(CGameWorld *pGameWorld, CDragger *pDragger, wvec2 Pos, float Strength, bool IgnoreWalls, int ForClientId, int Layer, int Number);
 
-	void SetPos(vec2 Pos);
+	void SetPos(wvec2 Pos);
 
 	void Reset() override;
 	void Tick() override;

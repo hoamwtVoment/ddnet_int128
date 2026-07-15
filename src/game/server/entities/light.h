@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #ifndef GAME_SERVER_ENTITIES_LIGHT_H
 #define GAME_SERVER_ENTITIES_LIGHT_H
 
@@ -7,8 +7,8 @@
 class CLight : public CEntity
 {
 	float m_Rotation;
-	vec2 m_To;
-	vec2 m_Core;
+	wvec2 m_To;
+	wvec2 m_Core;
 
 	int m_EvalTick;
 
@@ -25,7 +25,7 @@ public:
 	int m_Speed;
 	int m_Length;
 
-	CLight(CGameWorld *pGameWorld, vec2 Pos, float Rotation, int Length,
+	CLight(CGameWorld *pGameWorld, wvec2 Pos, float Rotation, int Length,
 		int Layer = 0, int Number = 0);
 
 	void Reset() override;

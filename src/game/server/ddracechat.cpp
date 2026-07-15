@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #include "gamecontext.h"
 #include "player.h"
 #include "score.h"
@@ -1780,7 +1780,7 @@ void CGameContext::ConTeleTo(IConsole::IResult *pResult, void *pUserData)
 		return;
 	}
 
-	vec2 Pos = {};
+	wvec2 Pos = {};
 
 	if(pResult->NumArguments() == 0)
 	{
@@ -1831,7 +1831,7 @@ void CGameContext::ConTeleXY(IConsole::IResult *pResult, void *pUserData)
 		return;
 	}
 
-	vec2 Pos = {};
+	wvec2 Pos = {};
 
 	if(pResult->NumArguments() != 2)
 	{
@@ -1910,10 +1910,10 @@ void CGameContext::ConTeleCursor(IConsole::IResult *pResult, void *pUserData)
 	}
 
 	// default to view pos when character is not available
-	vec2 Pos = pPlayer->m_ViewPos;
+	wvec2 Pos = pPlayer->m_ViewPos;
 	if(pResult->NumArguments() == 0 && !pPlayer->IsPaused() && pPlayer->GetCharacter() && pPlayer->GetCharacter()->IsAlive())
 	{
-		vec2 Target = vec2(pChr->Core()->m_Input.m_TargetX, pChr->Core()->m_Input.m_TargetY);
+		wvec2 Target = wvec2(pChr->Core()->m_Input.m_TargetX, pChr->Core()->m_Input.m_TargetY);
 		Pos = pPlayer->m_CameraInfo.ConvertTargetToWorld(pPlayer->GetCharacter()->GetPos(), Target);
 	}
 	else if(pResult->NumArguments() > 0)

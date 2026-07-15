@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #ifndef GAME_SERVER_ENTITIES_PLASMA_H
 #define GAME_SERVER_ENTITIES_PLASMA_H
 
@@ -22,7 +22,7 @@
  */
 class CPlasma : public CEntity
 {
-	vec2 m_Core;
+	wvec2 m_Core;
 	int m_Freeze;
 	bool m_Explosive;
 	int m_ForClientId;
@@ -34,7 +34,7 @@ class CPlasma : public CEntity
 	bool HitObstacle(CCharacter *pTarget);
 
 public:
-	CPlasma(CGameWorld *pGameWorld, vec2 Pos, vec2 Dir, bool Freeze,
+	CPlasma(CGameWorld *pGameWorld, wvec2 Pos, wvec2 Dir, bool Freeze,
 		bool Explosive, int ForClientId);
 
 	void Reset() override;

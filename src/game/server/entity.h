@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_SERVER_ENTITY_H
 #define GAME_SERVER_ENTITY_H
@@ -46,15 +46,15 @@ protected:
 public: // TODO: Maybe make protected
 	/*
 		Variable: m_Pos
-			Contains the current posititon of the entity.
+			Contains the current posititon of the entity (world coords, i128 fixed-point).
 	*/
-	vec2 m_Pos;
+	wvec2 m_Pos;
 
 	/* Getters */
 	std::optional<int> GetId() const { return m_Id; }
 
 	/* Constructor */
-	CEntity(CGameWorld *pGameWorld, int Objtype, bool SnapFreeId, vec2 Pos = vec2(0, 0), int ProximityRadius = 0);
+	CEntity(CGameWorld *pGameWorld, int Objtype, bool SnapFreeId, wvec2 Pos = wvec2(0, 0), int ProximityRadius = 0);
 
 	/* Destructor */
 	virtual ~CEntity();
@@ -73,7 +73,7 @@ public: // TODO: Maybe make protected
 	/* Getters */
 	CEntity *TypeNext() { return m_pNextTypeEntity; }
 	CEntity *TypePrev() { return m_pPrevTypeEntity; }
-	const vec2 &GetPos() const { return m_Pos; }
+	const wvec2 &GetPos() const { return m_Pos; }
 	float GetProximityRadius() const { return m_ProximityRadius; }
 
 	/* Other functions */
@@ -167,22 +167,22 @@ public: // TODO: Maybe make protected
 			True if the entity doesn't have to be in the snapshot.
 	*/
 	bool NetworkClipped(int SnappingClient) const;
-	bool NetworkClipped(int SnappingClient, vec2 CheckPos) const;
-	bool NetworkClippedLine(int SnappingClient, vec2 StartPos, vec2 EndPos) const;
+	bool NetworkClipped(int SnappingClient, wvec2 CheckPos) const;
+	bool NetworkClippedLine(int SnappingClient, wvec2 StartPos, wvec2 EndPos) const;
 
-	bool GameLayerClipped(vec2 CheckPos);
+	bool GameLayerClipped(wvec2 CheckPos);
 	virtual bool CanCollide(int ClientId) { return true; }
 
 	// DDRace
 
-	bool GetNearestAirPos(vec2 Pos, vec2 PrevPos, vec2 *pOutPos);
-	bool GetNearestAirPosPlayer(vec2 PlayerPos, vec2 *pOutPos);
+	bool GetNearestAirPos(wvec2 Pos, wvec2 PrevPos, wvec2 *pOutPos);
+	bool GetNearestAirPosPlayer(wvec2 PlayerPos, wvec2 *pOutPos);
 
 	int m_Number;
 	int m_Layer;
 };
 
-bool NetworkClipped(const CGameContext *pGameServer, int SnappingClient, vec2 CheckPos);
-bool NetworkClippedLine(const CGameContext *pGameServer, int SnappingClient, vec2 StartPos, vec2 EndPos);
+bool NetworkClipped(const CGameContext *pGameServer, int SnappingClient, wvec2 CheckPos);
+bool NetworkClippedLine(const CGameContext *pGameServer, int SnappingClient, wvec2 StartPos, wvec2 EndPos);
 
 #endif

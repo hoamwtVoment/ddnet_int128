@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #include "plasma.h"
 
 #include "character.h"
@@ -12,7 +12,7 @@
 
 const float PLASMA_ACCEL = 1.1f;
 
-CPlasma::CPlasma(CGameWorld *pGameWorld, vec2 Pos, vec2 Dir, bool Freeze,
+CPlasma::CPlasma(CGameWorld *pGameWorld, wvec2 Pos, wvec2 Dir, bool Freeze,
 	bool Explosive, int ForClientId) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_LASER, true)
 {
@@ -57,7 +57,7 @@ void CPlasma::Move()
 
 bool CPlasma::HitCharacter(CCharacter *pTarget)
 {
-	vec2 IntersectPos;
+	wvec2 IntersectPos;
 	CCharacter *pHitPlayer = GameServer()->m_World.IntersectCharacter(
 		m_Pos, m_Pos + m_Core, 0.0f, IntersectPos, nullptr, m_ForClientId);
 	if(!pHitPlayer)

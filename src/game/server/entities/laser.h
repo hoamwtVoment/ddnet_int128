@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_SERVER_ENTITIES_LASER_H
 #define GAME_SERVER_ENTITIES_LASER_H
@@ -9,7 +9,7 @@
 class CLaser : public CEntity
 {
 public:
-	CLaser(CGameWorld *pGameWorld, vec2 Pos, vec2 Direction, float StartEnergy, int Owner, int Type);
+	CLaser(CGameWorld *pGameWorld, wvec2 Pos, wvec2 Direction, float StartEnergy, int Owner, int Type);
 
 	void Reset() override;
 	void Tick() override;
@@ -20,13 +20,13 @@ public:
 	int GetOwnerId() const override { return m_Owner; }
 
 protected:
-	bool HitCharacter(vec2 From, vec2 To);
+	bool HitCharacter(wvec2 From, wvec2 To);
 	void DoBounce();
 
 private:
-	vec2 m_From;
-	vec2 m_Dir;
-	vec2 m_TelePos;
+	wvec2 m_From;
+	wvec2 m_Dir;
+	wvec2 m_TelePos;
 	bool m_WasTele;
 	float m_Energy;
 	int m_Bounces;
@@ -37,7 +37,7 @@ private:
 
 	// DDRace
 
-	vec2 m_PrevPos;
+	wvec2 m_PrevPos;
 	int m_Type;
 	int m_TuneZone;
 	bool m_TeleportCancelled;

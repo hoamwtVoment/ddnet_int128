@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #include "light.h"
 
 #include "character.h"
@@ -12,12 +12,12 @@
 #include <game/server/player.h>
 #include <game/teamscore.h>
 
-CLight::CLight(CGameWorld *pGameWorld, vec2 Pos, float Rotation, int Length,
+CLight::CLight(CGameWorld *pGameWorld, wvec2 Pos, float Rotation, int Length,
 	int Layer, int Number) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_LASER, true)
 {
-	m_To = vec2(0.0f, 0.0f);
-	m_Core = vec2(0.0f, 0.0f);
+	m_To = wvec2(0.0f, 0.0f);
+	m_Core = wvec2(0.0f, 0.0f);
 	m_Layer = Layer;
 	m_Number = Number;
 	m_Tick = (Server()->TickSpeed() * 0.15f);
@@ -73,8 +73,8 @@ void CLight::Move()
 void CLight::Step()
 {
 	Move();
-	const vec2 Direction = vec2(std::sin(m_Rotation), std::cos(m_Rotation));
-	const vec2 NextPosition = m_Pos + normalize(Direction) * m_CurveLength;
+	const wvec2 Direction = wvec2(std::sin(m_Rotation), std::cos(m_Rotation));
+	const wvec2 NextPosition = m_Pos + normalize(Direction) * m_CurveLength;
 	GameServer()->Collision()->IntersectNoLaser(m_Pos, NextPosition, &m_To, nullptr);
 }
 
@@ -108,7 +108,7 @@ void CLight::Snap(int SnappingClient)
 	if(SnappingClient != SERVER_DEMO_CLIENT && (GameServer()->m_apPlayers[SnappingClient]->GetTeam() == TEAM_SPECTATORS || GameServer()->m_apPlayers[SnappingClient]->IsPaused()) && GameServer()->m_apPlayers[SnappingClient]->SpectatorId() != SPEC_FREEVIEW)
 		pChr = GameServer()->GetPlayerChar(GameServer()->m_apPlayers[SnappingClient]->SpectatorId());
 
-	vec2 From = m_Pos;
+	wvec2 From = m_Pos;
 	int StartTick = -1;
 
 	if(pChr && pChr->Team() == TEAM_SUPER)

@@ -1,4 +1,4 @@
-/* copyright (c) 2007 magnus auvinen, see licence.txt for more info */
+﻿/* copyright (c) 2007 magnus auvinen, see licence.txt for more info */
 
 #ifndef GAME_SERVER_ENTITIES_GUN_H
 #define GAME_SERVER_ENTITIES_GUN_H
@@ -21,7 +21,7 @@
  */
 class CGun : public CEntity
 {
-	vec2 m_Core;
+	wvec2 m_Core;
 	bool m_Freeze;
 	bool m_Explosive;
 	int m_EvalTick;
@@ -31,7 +31,7 @@ class CGun : public CEntity
 	void Fire();
 
 public:
-	CGun(CGameWorld *pGameWorld, vec2 Pos, bool Freeze, bool Explosive, int Layer = 0, int Number = 0);
+	CGun(CGameWorld *pGameWorld, wvec2 Pos, bool Freeze, bool Explosive, int Layer = 0, int Number = 0);
 
 	void Reset() override;
 	void Tick() override;

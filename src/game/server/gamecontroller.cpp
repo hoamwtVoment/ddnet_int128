@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "gamecontroller.h"
 
@@ -86,7 +86,7 @@ void IGameController::DoActivityCheck()
 	}
 }
 
-float IGameController::EvaluateSpawnPos(CSpawnEval *pEval, vec2 Pos, int ClientId)
+float IGameController::EvaluateSpawnPos(CSpawnEval *pEval, wvec2 Pos, int ClientId)
 {
 	float Score = 0.0f;
 	CCharacter *pC = static_cast<CCharacter *>(GameServer()->m_World.FindFirst(CGameWorld::ENTTYPE_CHARACTER));
@@ -120,15 +120,15 @@ void IGameController::EvaluateSpawnType(CSpawnEval *pEval, ESpawnType SpawnType,
 	for(int j = 0; j < 2; j++)
 	{
 		// get spawn point
-		for(const vec2 &SpawnPoint : m_avSpawnPoints[SpawnType])
+		for(const wvec2 &SpawnPoint : m_avSpawnPoints[SpawnType])
 		{
-			vec2 P = SpawnPoint;
+			wvec2 P = SpawnPoint;
 			if(j == 0)
 			{
 				// check if the position is occupado
 				CEntity *apEnts[MAX_CLIENTS];
 				int Num = GameServer()->m_World.FindEntities(SpawnPoint, 64, apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
-				vec2 aPositions[5] = {vec2(0.0f, 0.0f), vec2(-32.0f, 0.0f), vec2(0.0f, -32.0f), vec2(32.0f, 0.0f), vec2(0.0f, 32.0f)}; // start, left, up, right, down
+				wvec2 aPositions[5] = {wvec2(0.0f, 0.0f), wvec2(-32.0f, 0.0f), wvec2(0.0f, -32.0f), wvec2(32.0f, 0.0f), wvec2(0.0f, 32.0f)}; // start, left, up, right, down
 				int Result = -1;
 				for(int Index = 0; Index < 5 && Result == -1; ++Index)
 				{
@@ -165,7 +165,7 @@ void IGameController::EvaluateSpawnType(CSpawnEval *pEval, ESpawnType SpawnType,
 	}
 }
 
-bool IGameController::CanSpawn(int Team, vec2 *pOutPos, int ClientId)
+bool IGameController::CanSpawn(int Team, wvec2 *pOutPos, int ClientId)
 {
 	// spectators can't spawn
 	if(Team == TEAM_SPECTATORS)
@@ -184,7 +184,7 @@ bool IGameController::OnEntity(int Index, int x, int y, int Layer, int Flags, bo
 {
 	dbg_assert(Index >= 0, "Invalid entity index");
 
-	const vec2 Pos(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
+	const wvec2 Pos(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
 
 	int aSides[8];
 	aSides[0] = GameServer()->Collision()->Entity(x, y + 1, Layer);
@@ -234,12 +234,12 @@ bool IGameController::OnEntity(int Index, int x, int y, int Layer, int Flags, bo
 			WEAPON_SHOTGUN, //Type
 			-1, //Owner
 			Pos, //Pos
-			vec2(std::sin(Deg), std::cos(Deg)), //Dir
+			wvec2(std::sin(Deg), std::cos(Deg)), //Dir
 			-2, //Span
 			true, //Freeze
 			true, //Explosive
 			(g_Config.m_SvShotgunBulletSound) ? SOUND_GRENADE_EXPLODE : -1, //SoundImpact
-			vec2(std::sin(Deg), std::cos(Deg)), // InitDir
+			wvec2(std::sin(Deg), std::cos(Deg)), // InitDir
 			Layer,
 			Number);
 		pBullet->SetBouncing(2 - (Dir % 2));
@@ -261,12 +261,12 @@ bool IGameController::OnEntity(int Index, int x, int y, int Layer, int Flags, bo
 			WEAPON_SHOTGUN, //Type
 			-1, //Owner
 			Pos, //Pos
-			vec2(std::sin(Deg), std::cos(Deg)), //Dir
+			wvec2(std::sin(Deg), std::cos(Deg)), //Dir
 			-2, //Span
 			true, //Freeze
 			false, //Explosive
 			SOUND_GRENADE_EXPLODE,
-			vec2(std::sin(Deg), std::cos(Deg)), // InitDir
+			wvec2(std::sin(Deg), std::cos(Deg)), // InitDir
 			Layer,
 			Number);
 		pBullet->SetBouncing(2 - (Dir % 2));

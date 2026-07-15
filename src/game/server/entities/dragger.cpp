@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #include "dragger.h"
 
 #include "character.h"
@@ -14,10 +14,10 @@
 #include <game/server/player.h>
 #include <game/server/teams.h>
 
-CDragger::CDragger(CGameWorld *pGameWorld, vec2 Pos, float Strength, bool IgnoreWalls, int Layer, int Number) :
+CDragger::CDragger(CGameWorld *pGameWorld, wvec2 Pos, float Strength, bool IgnoreWalls, int Layer, int Number) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_LASER, true)
 {
-	m_Core = vec2(0.0f, 0.0f);
+	m_Core = wvec2(0.0f, 0.0f);
 	m_Pos = Pos;
 	m_Strength = Strength;
 	m_IgnoreWalls = IgnoreWalls;

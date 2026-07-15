@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "projectile.h"
 
@@ -16,13 +16,13 @@ CProjectile::CProjectile(
 	CGameWorld *pGameWorld,
 	int Type,
 	int Owner,
-	vec2 Pos,
-	vec2 Dir,
+	wvec2 Pos,
+	wvec2 Dir,
 	int Span,
 	bool Freeze,
 	bool Explosive,
 	int SoundImpact,
-	vec2 InitDir,
+	wvec2 InitDir,
 	int Layer,
 	int Number) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_PROJECTILE, true)
@@ -57,7 +57,7 @@ void CProjectile::Reset()
 	m_MarkedForDestroy = true;
 }
 
-vec2 CProjectile::GetPos(float Time)
+wvec2 CProjectile::GetPos(float Time)
 {
 	float Curvature = 0;
 	float Speed = 0;
@@ -88,10 +88,10 @@ void CProjectile::Tick()
 {
 	float Pt = (Server()->Tick() - m_StartTick - 1) / (float)Server()->TickSpeed();
 	float Ct = (Server()->Tick() - m_StartTick) / (float)Server()->TickSpeed();
-	vec2 PrevPos = GetPos(Pt);
-	vec2 CurPos = GetPos(Ct);
-	vec2 ColPos;
-	vec2 NewPos;
+	wvec2 PrevPos = GetPos(Pt);
+	wvec2 CurPos = GetPos(Ct);
+	wvec2 ColPos;
+	wvec2 NewPos;
 	int Collide = GameServer()->Collision()->IntersectLine(PrevPos, CurPos, &ColPos, &NewPos);
 	CCharacter *pOwnerChar = nullptr;
 
@@ -156,7 +156,7 @@ void CProjectile::Tick()
 			}
 		}
 		else if(pTargetChr)
-			pTargetChr->TakeDamage(vec2(0, 0), 0, m_Owner, m_Type);
+			pTargetChr->TakeDamage(wvec2(0, 0), 0, m_Owner, m_Type);
 
 		if(pOwnerChar && !GameLayerClipped(ColPos) &&
 			((m_Type == WEAPON_GRENADE && pOwnerChar->HasTelegunGrenade()) || (m_Type == WEAPON_GUN && pOwnerChar->HasTelegunGun())))
@@ -183,7 +183,7 @@ void CProjectile::Tick()
 			if(TileFIndex == TILE_ALLOW_TELE_GUN || TileFIndex == TILE_ALLOW_BLUE_TELE_GUN || IsSwitchTeleGun || IsBlueSwitchTeleGun || pTargetChr)
 			{
 				bool Found;
-				vec2 PossiblePos;
+				wvec2 PossiblePos;
 
 				if(!Collide)
 					Found = GetNearestAirPosPlayer(pTargetChr ? pTargetChr->m_Pos : ColPos, &PossiblePos);
@@ -215,7 +215,7 @@ void CProjectile::Tick()
 		}
 		else if(m_Type == WEAPON_GUN)
 		{
-			GameServer()->CreateDamageInd(CurPos, -std::atan2(m_Direction.x, m_Direction.y), 10, (m_Owner != -1) ? TeamMask : CClientMask().set());
+			GameServer()->CreateDamageInd(CurPos, -std::atan2(m_Direction.x.to_float(), m_Direction.y.to_float()), 10, (m_Owner != -1) ? TeamMask : CClientMask().set());
 			m_MarkedForDestroy = true;
 			return;
 		}
@@ -297,7 +297,7 @@ CNetObj_DDRaceProjectile CProjectile::NetInfoLegacy() const
 	dbg_assert(NetIsInfoLegacyCompatible(), "can't send incompatible projectile");
 
 	//Send additional/modified info, by modifying the fields of the netobj
-	float Angle = -std::atan2(m_Direction.x, m_Direction.y);
+	float Angle = -std::atan2(m_Direction.x.to_float(), m_Direction.y.to_float());
 
 	int Data = 0;
 	Data |= (absolute(m_Owner) & 255) << 0;

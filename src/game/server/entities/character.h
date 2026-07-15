@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_SERVER_ENTITIES_CHARACTER_H
 #define GAME_SERVER_ENTITIES_CHARACTER_H
@@ -77,11 +77,11 @@ public:
 	void FireWeapon();
 
 	void Die(int Killer, int Weapon, bool SendKillMsg = true);
-	bool TakeDamage(vec2 Force, int Dmg, int From, int Weapon);
+	bool TakeDamage(wvec2 Force, int Dmg, int From, int Weapon);
 	void SendDeathMessageIfNotInLockedTeam(int Killer, int Weapon, int ModeSpecial);
 	void CancelSwapRequests();
 
-	bool Spawn(class CPlayer *pPlayer, vec2 Pos);
+	bool Spawn(class CPlayer *pPlayer, wvec2 Pos);
 	bool Remove();
 
 	bool IncreaseHealth(int Amount);
@@ -104,13 +104,13 @@ public:
 	const CPlayer *GetPlayer() const { return m_pPlayer; }
 	CClientMask TeamMask();
 
-	void SetPosition(const vec2 &Position);
-	void Move(vec2 RelPos);
+	void SetPosition(const wvec2 &Position);
+	void Move(wvec2 RelPos);
 
 	void ResetVelocity();
-	void SetVelocity(vec2 NewVelocity);
-	void SetRawVelocity(vec2 NewVelocity);
-	void AddVelocity(vec2 Addition);
+	void SetVelocity(wvec2 NewVelocity);
+	void SetRawVelocity(wvec2 NewVelocity);
+	void AddVelocity(wvec2 Addition);
 	void ApplyMoveRestrictions();
 
 private:
@@ -216,7 +216,7 @@ public:
 	int m_PainSoundTimer;
 	int m_LastMove;
 	int m_StartTime;
-	vec2 m_PrevPos;
+	wvec2 m_PrevPos;
 	int m_TeleCheckpoint;
 
 	int m_TimeCpBroadcastEndTick;
@@ -232,7 +232,7 @@ public:
 	bool m_LastRefillJumps;
 	bool m_LastPenalty;
 	bool m_LastBonus;
-	vec2 m_TeleGunPos;
+	wvec2 m_TeleGunPos;
 	bool m_TeleGunTeleport;
 	bool m_IsBlueTeleGunTeleport;
 	int m_StrongWeakId;
@@ -255,7 +255,7 @@ public:
 	void SetWeaponGot(int Type, bool Value) { m_Core.m_aWeapons[Type].m_Got = Value; }
 	int GetWeaponAmmo(int Type) { return m_Core.m_aWeapons[Type].m_Ammo; }
 	void SetWeaponAmmo(int Type, int Value) { m_Core.m_aWeapons[Type].m_Ammo = Value; }
-	void SetNinjaActivationDir(vec2 ActivationDir) { m_Core.m_Ninja.m_ActivationDir = ActivationDir; }
+	void SetNinjaActivationDir(wvec2 ActivationDir) { m_Core.m_Ninja.m_ActivationDir = ActivationDir; }
 	void SetNinjaActivationTick(int ActivationTick) { m_Core.m_Ninja.m_ActivationTick = ActivationTick; }
 	void SetNinjaCurrentMoveTime(int CurrentMoveTime) { m_Core.m_Ninja.m_CurrentMoveTime = CurrentMoveTime; }
 

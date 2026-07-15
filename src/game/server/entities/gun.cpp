@@ -1,4 +1,4 @@
-/* copyright (c) 2007 magnus auvinen, see licence.txt for more info */
+﻿/* copyright (c) 2007 magnus auvinen, see licence.txt for more info */
 #include "gun.h"
 
 #include "character.h"
@@ -14,10 +14,10 @@
 #include <game/server/player.h>
 #include <game/server/teams.h>
 
-CGun::CGun(CGameWorld *pGameWorld, vec2 Pos, bool Freeze, bool Explosive, int Layer, int Number) :
+CGun::CGun(CGameWorld *pGameWorld, wvec2 Pos, bool Freeze, bool Explosive, int Layer, int Number) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_LASER, true)
 {
-	m_Core = vec2(0.0f, 0.0f);
+	m_Core = wvec2(0.0f, 0.0f);
 	m_Pos = Pos;
 	m_Freeze = Freeze;
 	m_Explosive = Explosive;

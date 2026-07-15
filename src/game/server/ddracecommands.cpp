@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #include "gamecontext.h"
 
 #include <base/io.h>
@@ -80,7 +80,7 @@ void CGameContext::MoveCharacter(int ClientId, int X, int Y, bool Raw)
 	if(!pChr)
 		return;
 
-	pChr->Move(vec2((Raw ? 1 : 32) * X, (Raw ? 1 : 32) * Y));
+	pChr->Move(wvec2((Raw ? 1 : 32) * X, (Raw ? 1 : 32) * Y));
 	pChr->ResetVelocity();
 	pChr->m_DDRaceState = ERaceState::CHEATED;
 }
@@ -416,7 +416,7 @@ void CGameContext::ModifyWeapons(IConsole::IResult *pResult, void *pUserData,
 	pChr->m_DDRaceState = ERaceState::CHEATED;
 }
 
-void CGameContext::Teleport(CCharacter *pChr, vec2 Pos)
+void CGameContext::Teleport(CCharacter *pChr, wvec2 Pos)
 {
 	pChr->SetPosition(Pos);
 	pChr->m_Pos = Pos;
@@ -478,16 +478,16 @@ void CGameContext::ConTeleport(IConsole::IResult *pResult, void *pUserData)
 	if(pChr && pPlayer && pSelf->GetPlayerChar(TeleTo))
 	{
 		// default to view pos when character is not available
-		vec2 Pos = pPlayer->m_ViewPos;
+		wvec2 Pos = pPlayer->m_ViewPos;
 		if(pResult->NumArguments() == 0 && !pPlayer->IsPaused() && pChr->IsAlive())
 		{
-			vec2 Target = vec2(pChr->Core()->m_Input.m_TargetX, pChr->Core()->m_Input.m_TargetY);
+			wvec2 Target = wvec2(pChr->Core()->m_Input.m_TargetX, pChr->Core()->m_Input.m_TargetY);
 			Pos = pPlayer->m_CameraInfo.ConvertTargetToWorld(pChr->GetPos(), Target);
 		}
 		pSelf->Teleport(pChr, Pos);
 		pChr->ResetJumps();
 		pChr->Unfreeze();
-		pChr->SetVelocity(vec2(0, 0));
+		pChr->SetVelocity(wvec2(0, 0));
 	}
 }
 

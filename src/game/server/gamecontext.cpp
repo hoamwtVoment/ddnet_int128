@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "gamecontext.h"
 
@@ -340,7 +340,7 @@ void CGameContext::FillAntibot(CAntibotRoundData *pData)
 	}
 }
 
-void CGameContext::CreateDamageInd(vec2 Pos, float Angle, int Amount, CClientMask Mask)
+void CGameContext::CreateDamageInd(wvec2 Pos, float Angle, int Amount, CClientMask Mask)
 {
 	float a = 3 * pi / 2 + Angle;
 	float s = a - pi / 3;
@@ -358,7 +358,7 @@ void CGameContext::CreateDamageInd(vec2 Pos, float Angle, int Amount, CClientMas
 	}
 }
 
-void CGameContext::CreateHammerHit(vec2 Pos, CClientMask Mask)
+void CGameContext::CreateHammerHit(wvec2 Pos, CClientMask Mask)
 {
 	CNetEvent_HammerHit *pEvent = m_Events.Create<CNetEvent_HammerHit>(Mask);
 	if(pEvent)
@@ -368,7 +368,7 @@ void CGameContext::CreateHammerHit(vec2 Pos, CClientMask Mask)
 	}
 }
 
-void CGameContext::CreateExplosion(vec2 Pos, int Owner, int Weapon, bool NoDamage, int ActivatedTeam, CClientMask Mask)
+void CGameContext::CreateExplosion(wvec2 Pos, int Owner, int Weapon, bool NoDamage, int ActivatedTeam, CClientMask Mask)
 {
 	// create the event
 	CNetEvent_Explosion *pEvent = m_Events.Create<CNetEvent_Explosion>(Mask);
@@ -387,8 +387,8 @@ void CGameContext::CreateExplosion(vec2 Pos, int Owner, int Weapon, bool NoDamag
 	for(int i = 0; i < Num; i++)
 	{
 		auto *pChr = static_cast<CCharacter *>(apEnts[i]);
-		vec2 Diff = pChr->m_Pos - Pos;
-		vec2 ForceDir(0, 1);
+		wvec2 Diff = pChr->m_Pos - Pos;
+		wvec2 ForceDir(0, 1);
 		float l = length(Diff);
 		if(l)
 			ForceDir = normalize(Diff);
@@ -426,7 +426,7 @@ void CGameContext::CreateExplosion(vec2 Pos, int Owner, int Weapon, bool NoDamag
 	}
 }
 
-void CGameContext::CreatePlayerSpawn(vec2 Pos, CClientMask Mask)
+void CGameContext::CreatePlayerSpawn(wvec2 Pos, CClientMask Mask)
 {
 	CNetEvent_Spawn *pEvent = m_Events.Create<CNetEvent_Spawn>(Mask);
 	if(pEvent)
@@ -436,7 +436,7 @@ void CGameContext::CreatePlayerSpawn(vec2 Pos, CClientMask Mask)
 	}
 }
 
-void CGameContext::CreateDeath(vec2 Pos, int ClientId, CClientMask Mask)
+void CGameContext::CreateDeath(wvec2 Pos, int ClientId, CClientMask Mask)
 {
 	CNetEvent_Death *pEvent = m_Events.Create<CNetEvent_Death>(Mask);
 	if(pEvent)
@@ -447,7 +447,7 @@ void CGameContext::CreateDeath(vec2 Pos, int ClientId, CClientMask Mask)
 	}
 }
 
-void CGameContext::CreateBirthdayEffect(vec2 Pos, CClientMask Mask)
+void CGameContext::CreateBirthdayEffect(wvec2 Pos, CClientMask Mask)
 {
 	CNetEvent_Birthday *pEvent = m_Events.Create<CNetEvent_Birthday>(Mask);
 	if(pEvent)
@@ -457,7 +457,7 @@ void CGameContext::CreateBirthdayEffect(vec2 Pos, CClientMask Mask)
 	}
 }
 
-void CGameContext::CreateFinishEffect(vec2 Pos, CClientMask Mask)
+void CGameContext::CreateFinishEffect(wvec2 Pos, CClientMask Mask)
 {
 	CNetEvent_Finish *pEvent = m_Events.Create<CNetEvent_Finish>(Mask);
 	if(pEvent)
@@ -467,7 +467,7 @@ void CGameContext::CreateFinishEffect(vec2 Pos, CClientMask Mask)
 	}
 }
 
-void CGameContext::CreateSound(vec2 Pos, int Sound, CClientMask Mask)
+void CGameContext::CreateSound(wvec2 Pos, int Sound, CClientMask Mask)
 {
 	if(Sound < 0)
 		return;
@@ -554,7 +554,7 @@ void CGameContext::SnapSwitchers(int SnappingClient)
 	Server()->SnapNewItem(SentTeam, SwitchState);
 }
 
-void CGameContext::SnapLaserObject(const CSnapContext &Context, int SnapId, const vec2 &To, const vec2 &From, int StartTick, int Owner, int LaserType, int Subtype, int SwitchNumber) const
+void CGameContext::SnapLaserObject(const CSnapContext &Context, int SnapId, const wvec2 &To, const wvec2 &From, int StartTick, int Owner, int LaserType, int Subtype, int SwitchNumber) const
 {
 	if(Context.GetClientVersion() >= VERSION_DDNET_MULTI_LASER)
 	{
@@ -583,7 +583,7 @@ void CGameContext::SnapLaserObject(const CSnapContext &Context, int SnapId, cons
 	}
 }
 
-void CGameContext::SnapPickup(const CSnapContext &Context, int SnapId, const vec2 &Pos, int Type, int SubType, int SwitchNumber, int Flags) const
+void CGameContext::SnapPickup(const CSnapContext &Context, int SnapId, const wvec2 &Pos, int Type, int SubType, int SwitchNumber, int Flags) const
 {
 	if(Context.IsSixup())
 	{
@@ -2797,7 +2797,7 @@ void CGameContext::OnShowOthersNetMessage(const CNetMsg_Cl_ShowOthers *pMsg, int
 void CGameContext::OnShowDistanceNetMessage(const CNetMsg_Cl_ShowDistance *pMsg, int ClientId)
 {
 	CPlayer *pPlayer = m_apPlayers[ClientId];
-	pPlayer->m_ShowDistance = vec2(pMsg->m_X, pMsg->m_Y);
+	pPlayer->m_ShowDistance = wvec2(pMsg->m_X, pMsg->m_Y);
 }
 
 void CGameContext::OnCameraInfoNetMessage(const CNetMsg_Cl_CameraInfo *pMsg, int ClientId)

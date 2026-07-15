@@ -1,4 +1,4 @@
-/* See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #include "dragger_beam.h"
 
 #include "character.h"
@@ -13,7 +13,7 @@
 #include <game/server/gamecontext.h>
 #include <game/server/save.h>
 
-CDraggerBeam::CDraggerBeam(CGameWorld *pGameWorld, CDragger *pDragger, vec2 Pos, float Strength, bool IgnoreWalls,
+CDraggerBeam::CDraggerBeam(CGameWorld *pGameWorld, CDragger *pDragger, wvec2 Pos, float Strength, bool IgnoreWalls,
 	int ForClientId, int Layer, int Number) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_LASER, true)
 {
@@ -77,7 +77,7 @@ void CDraggerBeam::Tick()
 	}
 }
 
-void CDraggerBeam::SetPos(vec2 Pos)
+void CDraggerBeam::SetPos(wvec2 Pos)
 {
 	m_Pos = Pos;
 }
@@ -104,7 +104,7 @@ void CDraggerBeam::Snap(int SnappingClient)
 		return;
 	}
 	// Only players with the dragger beam in their field of view or who want to see everything will receive the snap
-	vec2 TargetPos = vec2(pTarget->m_Pos.x, pTarget->m_Pos.y);
+	wvec2 TargetPos = wvec2(pTarget->m_Pos.x, pTarget->m_Pos.y);
 	if(distance(pTarget->m_Pos, m_Pos) >= g_Config.m_SvDraggerRange || NetworkClippedLine(SnappingClient, m_Pos, TargetPos))
 	{
 		return;

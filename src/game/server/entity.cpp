@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 
 #include "entity.h"
@@ -11,7 +11,7 @@
 //////////////////////////////////////////////////
 // Entity
 //////////////////////////////////////////////////
-CEntity::CEntity(CGameWorld *pGameWorld, int ObjType, bool SnapFreeId, vec2 Pos, int ProximityRadius)
+CEntity::CEntity(CGameWorld *pGameWorld, int ObjType, bool SnapFreeId, wvec2 Pos, int ProximityRadius)
 {
 	m_pGameWorld = pGameWorld;
 	m_pCCollision = GameServer()->Collision();
@@ -40,50 +40,50 @@ bool CEntity::NetworkClipped(int SnappingClient) const
 	return ::NetworkClipped(m_pGameWorld->GameServer(), SnappingClient, m_Pos);
 }
 
-bool CEntity::NetworkClipped(int SnappingClient, vec2 CheckPos) const
+bool CEntity::NetworkClipped(int SnappingClient, wvec2 CheckPos) const
 {
 	return ::NetworkClipped(m_pGameWorld->GameServer(), SnappingClient, CheckPos);
 }
 
-bool CEntity::NetworkClippedLine(int SnappingClient, vec2 StartPos, vec2 EndPos) const
+bool CEntity::NetworkClippedLine(int SnappingClient, wvec2 StartPos, wvec2 EndPos) const
 {
 	return ::NetworkClippedLine(m_pGameWorld->GameServer(), SnappingClient, StartPos, EndPos);
 }
 
-bool CEntity::GameLayerClipped(vec2 CheckPos)
+bool CEntity::GameLayerClipped(wvec2 CheckPos)
 {
 	return round_to_int(CheckPos.x) / 32 < -200 || round_to_int(CheckPos.x) / 32 > GameServer()->Collision()->GetWidth() + 200 ||
 	       round_to_int(CheckPos.y) / 32 < -200 || round_to_int(CheckPos.y) / 32 > GameServer()->Collision()->GetHeight() + 200;
 }
 
-bool CEntity::GetNearestAirPos(vec2 Pos, vec2 PrevPos, vec2 *pOutPos)
+bool CEntity::GetNearestAirPos(wvec2 Pos, wvec2 PrevPos, wvec2 *pOutPos)
 {
 	for(int k = 0; k < 16 && GameServer()->Collision()->CheckPoint(Pos); k++)
 	{
 		Pos -= normalize(PrevPos - Pos);
 	}
 
-	vec2 PosInBlock = vec2(round_to_int(Pos.x) % 32, round_to_int(Pos.y) % 32);
-	vec2 BlockCenter = vec2(round_to_int(Pos.x), round_to_int(Pos.y)) - PosInBlock + vec2(16.0f, 16.0f);
+	wvec2 PosInBlock = wvec2(round_to_int(Pos.x) % 32, round_to_int(Pos.y) % 32);
+	wvec2 BlockCenter = wvec2(round_to_int(Pos.x), round_to_int(Pos.y)) - PosInBlock + wvec2(16.0f, 16.0f);
 
-	*pOutPos = vec2(BlockCenter.x + (PosInBlock.x < 16 ? -2.0f : 1.0f), Pos.y);
+	*pOutPos = wvec2(BlockCenter.x + (PosInBlock.x < 16 ? -2.0f : 1.0f), Pos.y);
 	if(!GameServer()->Collision()->TestBox(*pOutPos, CCharacterCore::PhysicalSizeVec2()))
 		return true;
 
-	*pOutPos = vec2(Pos.x, BlockCenter.y + (PosInBlock.y < 16 ? -2.0f : 1.0f));
+	*pOutPos = wvec2(Pos.x, BlockCenter.y + (PosInBlock.y < 16 ? -2.0f : 1.0f));
 	if(!GameServer()->Collision()->TestBox(*pOutPos, CCharacterCore::PhysicalSizeVec2()))
 		return true;
 
-	*pOutPos = vec2(BlockCenter.x + (PosInBlock.x < 16 ? -2.0f : 1.0f),
+	*pOutPos = wvec2(BlockCenter.x + (PosInBlock.x < 16 ? -2.0f : 1.0f),
 		BlockCenter.y + (PosInBlock.y < 16 ? -2.0f : 1.0f));
 	return !GameServer()->Collision()->TestBox(*pOutPos, CCharacterCore::PhysicalSizeVec2());
 }
 
-bool CEntity::GetNearestAirPosPlayer(vec2 PlayerPos, vec2 *pOutPos)
+bool CEntity::GetNearestAirPosPlayer(wvec2 PlayerPos, wvec2 *pOutPos)
 {
 	for(int Distance = 5; Distance >= -1; Distance--)
 	{
-		*pOutPos = vec2(PlayerPos.x, PlayerPos.y - Distance);
+		*pOutPos = wvec2(PlayerPos.x, PlayerPos.y - Distance);
 		if(!GameServer()->Collision()->TestBox(*pOutPos, CCharacterCore::PhysicalSizeVec2()))
 		{
 			return true;
@@ -92,7 +92,7 @@ bool CEntity::GetNearestAirPosPlayer(vec2 PlayerPos, vec2 *pOutPos)
 	return false;
 }
 
-bool NetworkClipped(const CGameContext *pGameServer, int SnappingClient, vec2 CheckPos)
+bool NetworkClipped(const CGameContext *pGameServer, int SnappingClient, wvec2 CheckPos)
 {
 	if(SnappingClient == SERVER_DEMO_CLIENT || pGameServer->m_apPlayers[SnappingClient]->m_ShowAll)
 		return false;
@@ -105,15 +105,15 @@ bool NetworkClipped(const CGameContext *pGameServer, int SnappingClient, vec2 Ch
 	return absolute(dy) > pGameServer->m_apPlayers[SnappingClient]->m_ShowDistance.y;
 }
 
-bool NetworkClippedLine(const CGameContext *pGameServer, int SnappingClient, vec2 StartPos, vec2 EndPos)
+bool NetworkClippedLine(const CGameContext *pGameServer, int SnappingClient, wvec2 StartPos, wvec2 EndPos)
 {
 	if(SnappingClient == SERVER_DEMO_CLIENT || pGameServer->m_apPlayers[SnappingClient]->m_ShowAll)
 		return false;
 
-	vec2 &ViewPos = pGameServer->m_apPlayers[SnappingClient]->m_ViewPos;
-	vec2 &ShowDistance = pGameServer->m_apPlayers[SnappingClient]->m_ShowDistance;
+	wvec2 &ViewPos = pGameServer->m_apPlayers[SnappingClient]->m_ViewPos;
+	wvec2 &ShowDistance = pGameServer->m_apPlayers[SnappingClient]->m_ShowDistance;
 
-	vec2 DistanceToLine, ClosestPoint;
+	wvec2 DistanceToLine, ClosestPoint;
 	if(closest_point_on_line(StartPos, EndPos, ViewPos, ClosestPoint))
 	{
 		DistanceToLine = ViewPos - ClosestPoint;

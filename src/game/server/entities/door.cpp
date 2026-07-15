@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #include "door.h"
 
 #include "character.h"
@@ -10,15 +10,15 @@
 #include <game/server/player.h>
 #include <game/teamscore.h>
 
-CDoor::CDoor(CGameWorld *pGameWorld, vec2 Pos, float Rotation, int Length,
+CDoor::CDoor(CGameWorld *pGameWorld, wvec2 Pos, float Rotation, int Length,
 	int Number) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_LASER, true)
 {
 	m_Number = Number;
 	m_Pos = Pos;
 	m_Length = Length;
-	m_Direction = vec2(std::sin(Rotation), std::cos(Rotation));
-	vec2 To = Pos + normalize(m_Direction) * m_Length;
+	m_Direction = wvec2(std::sin(Rotation), std::cos(Rotation));
+	wvec2 To = Pos + normalize(m_Direction) * m_Length;
 
 	GameServer()->Collision()->IntersectNoLaser(Pos, To, &this->m_To, nullptr);
 	ResetCollision();
@@ -32,7 +32,7 @@ void CDoor::ResetCollision()
 
 	for(int i = 0; i < m_Length - 1; i++)
 	{
-		vec2 CurrentPos = m_Pos + m_Direction * i;
+		wvec2 CurrentPos = m_Pos + m_Direction * i;
 		if(GameServer()->Collision()->CheckPoint(CurrentPos))
 			break;
 		else
@@ -52,7 +52,7 @@ void CDoor::Snap(int SnappingClient)
 
 	int SnappingClientVersion = GameServer()->GetClientVersion(SnappingClient);
 
-	vec2 From;
+	wvec2 From;
 	int StartTick;
 
 	if(SnappingClientVersion >= VERSION_DDNET_ENTITY_NETOBJS)

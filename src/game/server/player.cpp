@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "player.h"
 
@@ -117,7 +117,7 @@ void CPlayer::Reset()
 	m_ShowOthers = g_Config.m_SvShowOthersDefault;
 	m_ShowAll = g_Config.m_SvShowAllDefault;
 	m_EnableSpectatorCount = true;
-	m_ShowDistance = vec2(1200, 800);
+	m_ShowDistance = wvec2(1200, 800);
 	m_SpecTeam = false;
 	m_NinjaJetpack = false;
 
@@ -414,7 +414,7 @@ void CPlayer::Snap(int SnappingClient)
 					}
 					else if(GameServer()->m_apPlayers[TranslatedId]->GetCharacter())
 					{
-						vec2 CheckPos = GameServer()->m_apPlayers[TranslatedId]->GetCharacter()->GetPos();
+						wvec2 CheckPos = GameServer()->m_apPlayers[TranslatedId]->GetCharacter()->GetPos();
 						float dx = pPlayer->m_ViewPos.x - CheckPos.x;
 						float dy = pPlayer->m_ViewPos.y - CheckPos.y;
 						if(absolute(dx) < (pPlayer->m_ShowDistance.x / 2.5f) && absolute(dy) < (pPlayer->m_ShowDistance.y / 2.3f))
@@ -540,7 +540,7 @@ void CPlayer::OnDirectInput(const CNetObj_PlayerInput *pNewInput)
 	AfkTimer();
 
 	if(((pNewInput->m_PlayerFlags & PLAYERFLAG_SPEC_CAM) || GetClientVersion() < VERSION_DDNET_PLAYERFLAG_SPEC_CAM) && ((!m_pCharacter && m_Team == TEAM_SPECTATORS) || m_Paused) && m_SpectatorId == SPEC_FREEVIEW)
-		m_ViewPos = vec2(pNewInput->m_TargetX, pNewInput->m_TargetY);
+		m_ViewPos = wvec2(pNewInput->m_TargetX, pNewInput->m_TargetY);
 
 	// check for activity
 	// if a player is killed, their scoreboard opens automatically, so ignore that flag
@@ -613,7 +613,7 @@ void CPlayer::Respawn(bool WeakHook)
 	}
 }
 
-CCharacter *CPlayer::ForceSpawn(vec2 Pos)
+CCharacter *CPlayer::ForceSpawn(wvec2 Pos)
 {
 	m_Spawning = false;
 	m_pCharacter = new(m_ClientId) CCharacter(&GameServer()->m_World, GameServer()->GetLastPlayerInput(m_ClientId));
@@ -699,7 +699,7 @@ bool CPlayer::SetTimerType(int TimerType)
 
 void CPlayer::TryRespawn()
 {
-	vec2 SpawnPos;
+	wvec2 SpawnPos;
 
 	if(!GameServer()->m_pController->CanSpawn(m_Team, &SpawnPos, m_ClientId))
 		return;
@@ -977,15 +977,15 @@ void CPlayer::ProcessScoreResult(CScorePlayerResult &Result)
 	}
 }
 
-vec2 CPlayer::CCameraInfo::ConvertTargetToWorld(vec2 Position, vec2 Target) const
+wvec2 CPlayer::CCameraInfo::ConvertTargetToWorld(wvec2 Position, wvec2 Target) const
 {
-	vec2 TargetCameraOffset(0, 0);
+	wvec2 TargetCameraOffset(0, 0);
 	float l = length(Target);
 
 	if(l > 0.0001f) // make sure that this isn't 0
 	{
 		float OffsetAmount = std::max(l - m_Deadzone, 0.0f) * (m_FollowFactor / 100.0f);
-		TargetCameraOffset = normalize_pre_length(Target, l) * OffsetAmount;
+		TargetCameraOffset = normalize_pre_length(Target, wcoord(l)) * OffsetAmount;
 	}
 
 	return Position + (Target - TargetCameraOffset) * m_Zoom + TargetCameraOffset;

@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_SERVER_GAMECONTROLLER_H
 #define GAME_SERVER_GAMECONTROLLER_H
@@ -35,7 +35,7 @@ protected:
 	};
 
 private:
-	std::vector<vec2> m_avSpawnPoints[NUM_SPAWNTYPES];
+	std::vector<wvec2> m_avSpawnPoints[NUM_SPAWNTYPES];
 
 	class CGameContext *m_pGameServer;
 	class CConfig *m_pConfig;
@@ -56,16 +56,16 @@ protected:
 		{
 			m_Got = false;
 			m_FriendlyTeam = -1;
-			m_Pos = vec2(100, 100);
+			m_Pos = wvec2(100, 100);
 		}
 
-		vec2 m_Pos;
+		wvec2 m_Pos;
 		bool m_Got;
 		int m_FriendlyTeam;
 		float m_Score;
 	};
 
-	float EvaluateSpawnPos(CSpawnEval *pEval, vec2 Pos, int ClientId);
+	float EvaluateSpawnPos(CSpawnEval *pEval, wvec2 Pos, int ClientId);
 	void EvaluateSpawnType(CSpawnEval *pEval, ESpawnType SpawnType, int ClientId);
 
 	void ResetGame();
@@ -200,7 +200,7 @@ public:
 	virtual CFinishTime SnapMapBestTime(int SnappingClient) { return CFinishTime::Unset(); }
 
 	// spawn
-	virtual bool CanSpawn(int Team, vec2 *pOutPos, int ClientId);
+	virtual bool CanSpawn(int Team, wvec2 *pOutPos, int ClientId);
 
 	virtual void DoTeamChange(class CPlayer *pPlayer, int Team, bool DoChatMsg);
 

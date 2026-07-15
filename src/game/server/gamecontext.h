@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_SERVER_GAMECONTEXT_H
 #define GAME_SERVER_GAMECONTEXT_H
@@ -286,19 +286,19 @@ public:
 	CVoteOptionServer *m_pVoteOptionLast;
 
 	// helper functions
-	void CreateDamageInd(vec2 Pos, float AngleMod, int Amount, CClientMask Mask = CClientMask().set());
-	void CreateExplosion(vec2 Pos, int Owner, int Weapon, bool NoDamage, int ActivatedTeam, CClientMask Mask = CClientMask().set());
-	void CreateHammerHit(vec2 Pos, CClientMask Mask = CClientMask().set());
-	void CreatePlayerSpawn(vec2 Pos, CClientMask Mask = CClientMask().set());
-	void CreateDeath(vec2 Pos, int ClientId, CClientMask Mask = CClientMask().set());
-	void CreateBirthdayEffect(vec2 Pos, CClientMask Mask = CClientMask().set());
-	void CreateFinishEffect(vec2 Pos, CClientMask Mask = CClientMask().set());
-	void CreateSound(vec2 Pos, int Sound, CClientMask Mask = CClientMask().set());
+	void CreateDamageInd(wvec2 Pos, float AngleMod, int Amount, CClientMask Mask = CClientMask().set());
+	void CreateExplosion(wvec2 Pos, int Owner, int Weapon, bool NoDamage, int ActivatedTeam, CClientMask Mask = CClientMask().set());
+	void CreateHammerHit(wvec2 Pos, CClientMask Mask = CClientMask().set());
+	void CreatePlayerSpawn(wvec2 Pos, CClientMask Mask = CClientMask().set());
+	void CreateDeath(wvec2 Pos, int ClientId, CClientMask Mask = CClientMask().set());
+	void CreateBirthdayEffect(wvec2 Pos, CClientMask Mask = CClientMask().set());
+	void CreateFinishEffect(wvec2 Pos, CClientMask Mask = CClientMask().set());
+	void CreateSound(wvec2 Pos, int Sound, CClientMask Mask = CClientMask().set());
 	void CreateSoundGlobal(int Sound, int Target = -1) const;
 
 	void SnapSwitchers(int SnappingClient);
-	void SnapLaserObject(const CSnapContext &Context, int SnapId, const vec2 &To, const vec2 &From, int StartTick, int Owner = -1, int LaserType = -1, int Subtype = -1, int SwitchNumber = -1) const;
-	void SnapPickup(const CSnapContext &Context, int SnapId, const vec2 &Pos, int Type, int SubType, int SwitchNumber, int Flags) const;
+	void SnapLaserObject(const CSnapContext &Context, int SnapId, const wvec2 &To, const wvec2 &From, int StartTick, int Owner = -1, int LaserType = -1, int Subtype = -1, int SwitchNumber = -1) const;
+	void SnapPickup(const CSnapContext &Context, int SnapId, const wvec2 &Pos, int Type, int SubType, int SwitchNumber, int Flags) const;
 
 	enum
 	{
@@ -479,7 +479,7 @@ private:
 
 	static void ConToTeleporter(IConsole::IResult *pResult, void *pUserData);
 	static void ConToCheckTeleporter(IConsole::IResult *pResult, void *pUserData);
-	void Teleport(CCharacter *pChr, vec2 Pos);
+	void Teleport(CCharacter *pChr, wvec2 Pos);
 	static void ConTeleport(IConsole::IResult *pResult, void *pUserData);
 
 	static void ConCredits(IConsole::IResult *pResult, void *pUserData);

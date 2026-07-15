@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_SERVER_PLAYER_H
 #define GAME_SERVER_PLAYER_H
@@ -36,7 +36,7 @@ public:
 
 	// mark respawning, with weak hook if WeakHook is true and strong otherwise
 	void Respawn(bool WeakHook = false);
-	CCharacter *ForceSpawn(vec2 Pos); // required for loading savegames
+	CCharacter *ForceSpawn(wvec2 Pos); // required for loading savegames
 	void SetTeam(int Team, bool DoChatMsg = true);
 	int GetTeam() const { return m_Team; }
 	int GetCid() const { return m_ClientId; }
@@ -65,7 +65,7 @@ public:
 
 	//---------------------------------------------------------
 	// this is used for snapping so we know how we can clip the view for the player
-	vec2 m_ViewPos;
+	wvec2 m_ViewPos;
 	int m_TuneZone;
 	int m_TuneZoneOld;
 
@@ -184,7 +184,7 @@ public:
 	int m_ShowOthers;
 	bool m_ShowAll;
 	bool m_EnableSpectatorCount;
-	vec2 m_ShowDistance;
+	wvec2 m_ShowDistance;
 	bool m_SpecTeam;
 	bool m_NinjaJetpack;
 
@@ -198,7 +198,7 @@ public:
 		int m_FollowFactor;
 
 	public:
-		vec2 ConvertTargetToWorld(vec2 Position, vec2 Target) const;
+		wvec2 ConvertTargetToWorld(wvec2 Position, wvec2 Target) const;
 		void Write(const CNetMsg_Cl_CameraInfo *pMsg);
 		void Reset();
 	} m_CameraInfo;
