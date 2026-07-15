@@ -67,30 +67,21 @@ void CMapLayers::OnRender()
 	m_Params.m_DebugRenderClusterClips = g_Config.m_DbgRenderClusterClips;
 	m_Params.m_DebugRenderTileClips = g_Config.m_DbgRenderTileClips;
 
-	// Far-lands rendering: absolute float world coords make MapScreen collapse
-	// (center±half == center). Use the same render origin as tees and fill with
-	// edge-clamped tiles so infinite border stays visible.
+	// Far-lands: only when camera is actually outside the map tile rect (or float
+	// view would collapse). Do NOT key off RenderOrigin alone — that wrongly forced
+	// the whole map into edge-fill + kill wash.
 	m_Params.m_RenderOrigin = GameClient()->RenderOrigin();
 
 	const vec2 C = m_Params.m_Center;
-	float MapMaxX = 0.0f;
-	float MapMaxY = 0.0f;
+	int MapW = 0;
+	int MapH = 0;
 	if(m_pLayers && m_pLayers->GameLayer())
 	{
-		MapMaxX = (float)m_pLayers->GameLayer()->m_Width * 32.0f;
-		MapMaxY = (float)m_pLayers->GameLayer()->m_Height * 32.0f;
+		MapW = m_pLayers->GameLayer()->m_Width;
+		MapH = m_pLayers->GameLayer()->m_Height;
 	}
-	const float MarginPx = (float)BorderRenderDistance * 32.0f;
-	const bool OutsideMap =
-		!std::isfinite(C.x) || !std::isfinite(C.y) ||
-		C.x < -MarginPx || C.y < -MarginPx ||
-		C.x > MapMaxX + MarginPx || C.y > MapMaxY + MarginPx;
-	// ~1e5 px: float already loses view width around the camera
-	const bool FloatUnsafe = std::abs(C.x) > 100000.0f || std::abs(C.y) > 100000.0f;
-	const bool HasOrigin = m_Params.m_RenderOrigin.x != 0.0f || m_Params.m_RenderOrigin.y != 0.0f;
-	m_Params.m_FarLands = OutsideMap || FloatUnsafe || HasOrigin;
 
-	// Prefer full i128 character pos for edge sampling (float camera loses tile index far out)
+	// Prefer i128 character pos for tile sampling when available
 	if(GameClient()->m_Snap.m_pLocalCharacter)
 	{
 		m_Params.m_CamTileX = i128_to_double(CharacterNetPosX(GameClient()->m_Snap.m_pLocalCharacter)) / 32.0;
@@ -103,8 +94,25 @@ void CMapLayers::OnRender()
 	}
 	else
 	{
-		m_Params.m_CamTileX = 1.0e300; // force far-right/bottom edge sample
-		m_Params.m_CamTileY = 1.0e300;
+		m_Params.m_CamTileX = 0.0;
+		m_Params.m_CamTileY = 0.0;
+	}
+
+	const bool CamFinite = std::isfinite(m_Params.m_CamTileX) && std::isfinite(m_Params.m_CamTileY);
+	const bool OutsideMapTiles = MapW > 0 && MapH > 0 && CamFinite &&
+				     (m_Params.m_CamTileX < 0.0 || m_Params.m_CamTileY < 0.0 ||
+					     m_Params.m_CamTileX >= (double)MapW || m_Params.m_CamTileY >= (double)MapH);
+	// ~3e6 px (~1e5 tiles): absolute MapScreen loses view width
+	const bool FloatUnsafe = (std::isfinite(C.x) && std::abs(C.x) > 3000000.0f) ||
+				 (std::isfinite(C.y) && std::abs(C.y) > 3000000.0f) ||
+				 !std::isfinite(C.x) || !std::isfinite(C.y);
+	m_Params.m_FarLands = OutsideMapTiles || FloatUnsafe;
+
+	// When far, keep render origin for relative MapScreen even if UpdateRenderOrigin lagged
+	if(m_Params.m_FarLands && m_Params.m_RenderOrigin.x == 0.0f && m_Params.m_RenderOrigin.y == 0.0f &&
+		std::isfinite(C.x) && std::isfinite(C.y))
+	{
+		m_Params.m_RenderOrigin = vec2(std::floor(C.x + 0.5f), std::floor(C.y + 0.5f));
 	}
 
 	m_MapRenderer.Render(m_Params);

@@ -574,20 +574,23 @@ void CRenderLayerTile::RenderKillTileBorder(const ColorRGBA &Color, const CRende
 	if(MapW <= 0 || MapH <= 0)
 		return;
 
-	// Outside the kill-border band (map expanded by BorderRenderDistance tiles)?
+	// Kill band is only outside the map expanded by BorderRenderDistance tiles.
+	// Never paint the whole playable map with blinking death wash.
 	const double SafeMin = (double)(-BorderRenderDistance);
 	const double SafeMaxX = (double)(MapW + BorderRenderDistance);
 	const double SafeMaxY = (double)(MapH + BorderRenderDistance);
-	const bool CamOutsideKillBand =
-		!std::isfinite(Params.m_CamTileX) || !std::isfinite(Params.m_CamTileY) ||
-		Params.m_CamTileX < SafeMin || Params.m_CamTileX >= SafeMaxX ||
-		Params.m_CamTileY < SafeMin || Params.m_CamTileY >= SafeMaxY;
+	const bool CamInKillZone = std::isfinite(Params.m_CamTileX) && std::isfinite(Params.m_CamTileY) &&
+				   (Params.m_CamTileX < SafeMin || Params.m_CamTileX >= SafeMaxX ||
+					   Params.m_CamTileY < SafeMin || Params.m_CamTileY >= SafeMaxY);
 
-	// Near map (normal absolute path) — keep vanilla buffered kill border when possible
-	if(!Params.m_FarLands && !CamOutsideKillBand && m_VisualTiles.has_value())
+	// On-map / near-map vanilla path: only extend death where the *screen* leaves the safe rect.
+	// Do not use CamTile fallthrough (wrong CamTile used to white-out the whole map).
+	if(!Params.m_FarLands)
 	{
+		if(!m_VisualTiles.has_value())
+			return;
 		CTileLayerVisuals &Visuals = m_VisualTiles.value();
-		if(Visuals.m_BufferContainerIndex == -1)
+		if(Visuals.m_BufferContainerIndex == -1 || !Visuals.m_BorderKillTile.DoDraw())
 			return;
 
 		float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
@@ -611,11 +614,8 @@ void CRenderLayerTile::RenderKillTileBorder(const ColorRGBA &Color, const CRende
 			ScaleTiles.y = std::clamp(ScaleTiles.y, 0.0f, 128.0f);
 			if(ScaleTiles.x <= 0.0f || ScaleTiles.y <= 0.0f)
 				return;
-			if(Visuals.m_BorderKillTile.DoDraw())
-			{
-				offset_ptr_size pOffset = (offset_ptr_size)Visuals.m_BorderKillTile.IndexBufferByteOffset();
-				Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color, pOffset, OffsetPx, ScaleTiles, 1);
-			}
+			offset_ptr_size pOffset = (offset_ptr_size)Visuals.m_BorderKillTile.IndexBufferByteOffset();
+			Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color, pOffset, OffsetPx, ScaleTiles, 1);
 		};
 		auto DrawBand = [&](int X0, int Y0, int X1, int Y1) {
 			if(X1 <= X0 || Y1 <= Y0)
@@ -633,37 +633,39 @@ void CRenderLayerTile::RenderKillTileBorder(const ColorRGBA &Color, const CRende
 		return;
 	}
 
-	// Far lands / fully outside kill band: fill current (camera-local) screen with death tiles.
-	// Prefer game-layer kill visual if available; otherwise solid quad tint.
+	// Far lands: only draw kill when camera is outside the kill-safe band.
+	// Between map edge and kill border, edge-clamped *map textures* are enough.
+	if(!CamInKillZone)
+		return;
+
+	// Tile death entity texture across the camera-local viewport (no solid white wash).
+	if(!m_VisualTiles.has_value() || !m_VisualTiles->m_BorderKillTile.DoDraw() || m_VisualTiles->m_BufferContainerIndex == -1)
+		return;
+
 	float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
 	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
 	if(!std::isfinite(ScreenX0) || ScreenX1 <= ScreenX0)
-	{
-		float aPoints[4];
-		Graphics()->MapScreenToWorld(0.0f, 0.0f, 100.0f, 100.0f, 100.0f, 0.0f, 0.0f, Graphics()->ScreenAspect(), Params.m_Zoom, aPoints);
-		Graphics()->MapScreen(aPoints[0], aPoints[1], aPoints[2], aPoints[3]);
-		Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
-		if(!std::isfinite(ScreenX0) || ScreenX1 <= ScreenX0)
-			return;
-	}
+		return;
 
-	const float ViewW = ScreenX1 - ScreenX0;
-	const float ViewH = ScreenY1 - ScreenY0;
-	if(m_VisualTiles.has_value() && m_VisualTiles->m_BorderKillTile.DoDraw() && m_VisualTiles->m_BufferContainerIndex != -1)
+	// Repeat kill tiles (not one stretched white quad) so texture is visible
+	const int StartX = (int)std::floor(ScreenX0 / 32.0f) - 1;
+	const int StartY = (int)std::floor(ScreenY0 / 32.0f) - 1;
+	const int EndX = (int)std::ceil(ScreenX1 / 32.0f) + 1;
+	const int EndY = (int)std::ceil(ScreenY1 / 32.0f) + 1;
+	constexpr int Chunk = 8;
+	constexpr int MaxCells = 64;
+	int Cells = 0;
+	offset_ptr_size pOffset = (offset_ptr_size)m_VisualTiles->m_BorderKillTile.IndexBufferByteOffset();
+	for(int ty = StartY; ty < EndY && Cells < MaxCells; ty += Chunk)
 	{
-		offset_ptr_size pOffset = (offset_ptr_size)m_VisualTiles->m_BorderKillTile.IndexBufferByteOffset();
-		// One stretched kill tile covering the whole view (scale in tile units)
-		const vec2 ScaleTiles(std::clamp(ViewW / 32.0f, 1.0f, 128.0f), std::clamp(ViewH / 32.0f, 1.0f, 128.0f));
-		Graphics()->RenderBorderTiles(m_VisualTiles->m_BufferContainerIndex, Color, pOffset, vec2(ScreenX0, ScreenY0), ScaleTiles, 1);
-	}
-	else
-	{
-		Graphics()->TextureClear();
-		Graphics()->QuadsBegin();
-		Graphics()->SetColor(Color);
-		IGraphics::CQuadItem Q(ScreenX0 + ViewW * 0.5f, ScreenY0 + ViewH * 0.5f, ViewW, ViewH);
-		Graphics()->QuadsDraw(&Q, 1);
-		Graphics()->QuadsEnd();
+		for(int tx = StartX; tx < EndX && Cells < MaxCells; tx += Chunk)
+		{
+			const int cw = std::min(Chunk, EndX - tx);
+			const int ch = std::min(Chunk, EndY - ty);
+			Graphics()->RenderBorderTiles(m_VisualTiles->m_BufferContainerIndex, Color, pOffset,
+				vec2((float)tx * 32.0f, (float)ty * 32.0f), vec2((float)cw, (float)ch), 1);
+			Cells++;
+		}
 	}
 }
 
@@ -1656,18 +1658,17 @@ bool CRenderLayerEntityGame::DoRender(const CRenderLayerParams &Params)
 
 void CRenderLayerEntityGame::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	// Death/kill border uses its own color (not overlay alpha — overlay=0 would hide it).
+	// Kill only outside the kill-safe band (RenderKillTileBorder decides).
 	if(Params.m_RenderTileBorder)
 		RenderKillTileBorder(GetDeathBorderColor(), Params);
-	// Far lands: base CRenderLayerTile::Render already does edge fill; entity path is separate.
-	if(Params.m_FarLands)
-	{
-		if(Params.m_EntityOverlayVal)
-			RenderFarLandsEdgeFill(Color, Params);
-		return;
-	}
+	// Game entity markers only when overlay is on — far lands use map tile layers for textures.
 	if(Params.m_EntityOverlayVal)
-		RenderTileLayer(Color, Params);
+	{
+		if(Params.m_FarLands)
+			RenderFarLandsEdgeFill(Color, Params);
+		else
+			RenderTileLayer(Color, Params);
+	}
 }
 
 void CRenderLayerEntityGame::RenderTileLayerNoTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
@@ -1675,15 +1676,14 @@ void CRenderLayerEntityGame::RenderTileLayerNoTileBuffer(const ColorRGBA &Color,
 	if(Params.m_RenderTileBorder)
 		RenderKillTileBorder(GetDeathBorderColor(), Params);
 
-	if(Params.m_FarLands)
-	{
-		if(Params.m_EntityOverlayVal)
-			RenderFarLandsEdgeFill(Color, Params);
-		return;
-	}
-
 	if(!Params.m_EntityOverlayVal)
 		return;
+
+	if(Params.m_FarLands)
+	{
+		RenderFarLandsEdgeFill(Color, Params);
+		return;
+	}
 
 	Graphics()->BlendNone();
 	RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, (Params.m_RenderTileBorder ? TILERENDERFLAG_EXTEND : 0) | LAYERRENDERFLAG_OPAQUE);
@@ -1701,10 +1701,9 @@ void CRenderLayerEntityGame::RenderTileLayerNoTileBuffer(const ColorRGBA &Color,
 
 ColorRGBA CRenderLayerEntityGame::GetDeathBorderColor() const
 {
-	// draw kill tiles outside the entity clipping rectangle
-	// slow blinking; keep alpha high so far-lands void is always visible
+	// Vanilla-ish blink: white modulates the death *texture* (not a solid wash).
 	float Seconds = time_get() / (float)time_freq();
-	float Alpha = 0.55f + 0.4f * (1.f + std::sin(2.f * pi * Seconds / 3.f));
+	float Alpha = 0.3f + 0.35f * (1.f + std::sin(2.f * pi * Seconds / 3.f));
 	return ColorRGBA(1.f, 1.f, 1.f, Alpha);
 }
 
