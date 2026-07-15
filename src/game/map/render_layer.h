@@ -60,10 +60,13 @@ public:
 	bool m_DebugRenderClusterClips;
 	bool m_DebugRenderTileClips;
 
-	// GPU-only translation (not a gameplay coordinate system). When non-zero,
-	// MapScreen is Center - RenderOrigin so float keeps a usable view.
+	// GPU-only translation (not a gameplay coordinate system).
 	vec2 m_RenderOrigin = vec2(0.0f, 0.0f);
-	// Absolute camera position in world tiles (i128-derived). Used for edge hard-draw.
+	bool m_OriginActive = false;
+	// When true, m_Center is already render-local (do not subtract m_RenderOrigin again).
+	// Critical near 2^25 tiles: absolute Center - Origin loses all local precision.
+	bool m_CenterIsLocal = false;
+	// Absolute camera position in world tiles (i128-derived).
 	double m_CamTileX = 0.0;
 	double m_CamTileY = 0.0;
 	// True when absolute camera is outside the map rectangle.

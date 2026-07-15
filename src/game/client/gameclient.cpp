@@ -806,12 +806,10 @@ void CGameClient::UpdatePositions()
 
 void CGameClient::UpdateRenderOrigin()
 {
-	// Keep origin OFF for normal / mid-far play. The old 1e7 px (~312500 tile) threshold
-	// switched MapScreen to relative space while tile GPU buffers stayed absolute, which
-	// blanked the entire view. Off-map drawing uses absolute MapScreen + unbuffered
-	// TILERENDERFLAG_EXTEND (per-screen-cell edge clamp) instead.
-	//
-	// Only re-enable origin when floats are already non-finite (true extreme).
+	// Float tile positions collapse near world px = 2^30 (tile index 2^25 = 33554432):
+	// ULP becomes >= 32px so adjacent tiles share one float. Breakpoint ~33554430.
+	// Before that, shift MapScreen by an aligned origin; off-map uses unbuffered EXTEND
+	// in that local space (not absolute GPU buffers).
 	i128 CharPx = I128(0);
 	i128 CharPy = I128(0);
 	bool HaveChar = false;
@@ -829,12 +827,16 @@ void CGameClient::UpdateRenderOrigin()
 	}
 
 	const vec2 C = m_Camera.m_Center;
-	bool NeedOrigin = !std::isfinite(C.x) || !std::isfinite(C.y);
+	// ~1e7 px ≈ 312500 tiles — well below 2^25, still float-safe for the relative view.
+	constexpr float Threshold = 1.0e7f;
+	bool NeedOrigin = !std::isfinite(C.x) || !std::isfinite(C.y) ||
+			  std::abs(C.x) > Threshold || std::abs(C.y) > Threshold;
 	if(!NeedOrigin && HaveChar)
 	{
 		const double Ax = i128_to_double(CharPx);
 		const double Ay = i128_to_double(CharPy);
-		NeedOrigin = !std::isfinite(Ax) || !std::isfinite(Ay);
+		NeedOrigin = !std::isfinite(Ax) || !std::isfinite(Ay) ||
+			     std::abs(Ax) > (double)Threshold || std::abs(Ay) > (double)Threshold;
 	}
 
 	if(NeedOrigin && HaveChar)
@@ -850,9 +852,22 @@ void CGameClient::UpdateRenderOrigin()
 		};
 		const i128 Ox = AlignDown(CharPx);
 		const i128 Oy = AlignDown(CharPy);
-		m_RenderOriginPxX = Ox;
-		m_RenderOriginPxY = Oy;
-		m_RenderOrigin = vec2((float)i128_to_double(Ox), (float)i128_to_double(Oy));
+		if(!m_RenderOriginActive || Ox != m_RenderOriginPxX || Oy != m_RenderOriginPxY)
+		{
+			m_RenderOriginPxX = Ox;
+			m_RenderOriginPxY = Oy;
+			m_RenderOrigin = vec2((float)i128_to_double(Ox), (float)i128_to_double(Oy));
+		}
+		m_RenderOriginActive = true;
+	}
+	else if(NeedOrigin && std::isfinite(C.x) && std::isfinite(C.y))
+	{
+		const float Cell = (float)RENDER_ORIGIN_CELL_PX;
+		const float Ox = std::floor(C.x / Cell) * Cell;
+		const float Oy = std::floor(C.y / Cell) * Cell;
+		m_RenderOrigin = vec2(Ox, Oy);
+		m_RenderOriginPxX = i128_from_double((double)Ox);
+		m_RenderOriginPxY = i128_from_double((double)Oy);
 		m_RenderOriginActive = true;
 	}
 	else
@@ -883,8 +898,34 @@ vec2 CGameClient::MixToRenderSpace(i128 PrevX, i128 PrevY, i128 CurX, i128 CurY,
 
 void CGameClient::MapScreenWorldRender()
 {
-	// Camera view in render-local coordinates
-	Graphics()->MapScreenToInterface(m_Camera.m_Center.x - m_RenderOrigin.x, m_Camera.m_Center.y - m_RenderOrigin.y, m_Camera.m_Zoom);
+	// Camera view in render-local coordinates. Prefer i128 relative — float
+	// (absoluteCenter - origin) dies at ~2^30 px (tile ~33554432).
+	if(m_RenderOriginActive)
+	{
+		vec2 Local(0.0f, 0.0f);
+		if(Predict() && m_Snap.m_pLocalCharacter)
+		{
+			const wvec2 Mixed = mix(m_PredictedPrevChar.m_Pos, m_PredictedChar.m_Pos, Client()->PredIntraGameTick(g_Config.m_ClDummy));
+			Local = ToRenderSpace(Mixed);
+		}
+		else if(m_Snap.m_pLocalCharacter && m_Snap.m_pLocalPrevCharacter)
+		{
+			Local = MixToRenderSpace(
+				CharacterNetPosX(m_Snap.m_pLocalPrevCharacter), CharacterNetPosY(m_Snap.m_pLocalPrevCharacter),
+				CharacterNetPosX(m_Snap.m_pLocalCharacter), CharacterNetPosY(m_Snap.m_pLocalCharacter),
+				Client()->IntraGameTick(g_Config.m_ClDummy));
+		}
+		else if(m_Snap.m_pLocalCharacter)
+		{
+			Local = ToRenderSpace(CharacterNetPosX(m_Snap.m_pLocalCharacter), CharacterNetPosY(m_Snap.m_pLocalCharacter));
+		}
+		Local += m_Camera.m_aDyncamCurrentCameraOffset[g_Config.m_ClDummy];
+		Graphics()->MapScreenToInterface(Local.x, Local.y, m_Camera.m_Zoom);
+	}
+	else
+	{
+		Graphics()->MapScreenToInterface(m_Camera.m_Center.x, m_Camera.m_Center.y, m_Camera.m_Zoom);
+	}
 }
 
 void CGameClient::OnRender()

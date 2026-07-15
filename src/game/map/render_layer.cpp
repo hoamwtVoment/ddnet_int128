@@ -279,10 +279,23 @@ void CRenderLayerGroup::Render(const CRenderLayerParams &Params)
 {
 	int ParallaxZoom = std::clamp(std::max(m_pGroup->m_ParallaxX, m_pGroup->m_ParallaxY), 0, 100);
 	float aPoints[4];
-	// Always absolute MapScreen (vanilla). Off-map uses unbuffered EXTEND which
-	// iterates only the visible screen cells and clamps sample indices to the edge.
-	Graphics()->MapScreenToWorld(Params.m_Center.x, Params.m_Center.y, m_pGroup->m_ParallaxX, m_pGroup->m_ParallaxY, (float)ParallaxZoom,
-		m_pGroup->m_OffsetX, m_pGroup->m_OffsetY, Graphics()->ScreenAspect(), Params.m_Zoom, aPoints);
+	// Past ~2^25 tiles absolute float collapses 32px steps (breakpoint ~33554430).
+	// Prefer precomputed local center (i128-relative); never large-float Center - Origin.
+	const bool Rel = Params.m_OriginActive;
+	float Cx = Params.m_Center.x;
+	float Cy = Params.m_Center.y;
+	if(Rel && !Params.m_CenterIsLocal)
+	{
+		Cx = Params.m_Center.x - Params.m_RenderOrigin.x;
+		Cy = Params.m_Center.y - Params.m_RenderOrigin.y;
+	}
+	const float ParX = Rel ? 100.0f : m_pGroup->m_ParallaxX;
+	const float ParY = Rel ? 100.0f : m_pGroup->m_ParallaxY;
+	const float OffX = Rel ? 0.0f : m_pGroup->m_OffsetX;
+	const float OffY = Rel ? 0.0f : m_pGroup->m_OffsetY;
+	const float ParZoom = Rel ? 100.0f : (float)ParallaxZoom;
+	Graphics()->MapScreenToWorld(Cx, Cy, ParX, ParY, ParZoom,
+		OffX, OffY, Graphics()->ScreenAspect(), Params.m_Zoom, aPoints);
 	Graphics()->MapScreen(aPoints[0], aPoints[1], aPoints[2], aPoints[3]);
 }
 
@@ -780,10 +793,10 @@ bool CRenderLayerTile::DoRender(const CRenderLayerParams &Params)
 
 void CRenderLayerTile::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	// Off-map: GPU tile buffers only hold the map rectangle. Vanilla border EXTEND with
-	// huge Scale causes float stripes/void. Unbuffered RenderTilemap+EXTEND walks only
-	// the visible screen cells and clamps samples to the edge — works at 312500+ tiles.
-	if(Params.m_OutsideMap && Params.m_RenderTileBorder && m_pTiles)
+	// Off-map and/or origin-local MapScreen: GPU absolute tile buffers are useless.
+	// Unbuffered EXTEND walks visible screen cells only and clamps samples to edges.
+	// In origin-local space StartX is small (~view); quads land in the view correctly.
+	if((Params.m_OutsideMap || Params.m_OriginActive) && Params.m_RenderTileBorder && m_pTiles)
 	{
 		Graphics()->BlendNone();
 		RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, TILERENDERFLAG_EXTEND | LAYERRENDERFLAG_OPAQUE);
@@ -1708,10 +1721,10 @@ void CRenderLayerEntityGame::Init()
 
 void CRenderLayerEntityGame::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	// Far off-map: skip kill border stretch (red stripes). Overlay markers via EXTEND.
-	if(Params.m_RenderTileBorder && !Params.m_OutsideMap)
+	// Far off-map / origin-local: skip kill border stretch (red stripes). Markers via EXTEND.
+	if(Params.m_RenderTileBorder && !Params.m_OutsideMap && !Params.m_OriginActive)
 		RenderKillTileBorder(Color.Multiply(GetDeathBorderColor()));
-	if(Params.m_OutsideMap)
+	if(Params.m_OutsideMap || Params.m_OriginActive)
 	{
 		if(Params.m_EntityOverlayVal && m_pTiles)
 		{
@@ -1727,7 +1740,7 @@ void CRenderLayerEntityGame::RenderTileLayerWithTileBuffer(const ColorRGBA &Colo
 
 void CRenderLayerEntityGame::RenderTileLayerNoTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	if(Params.m_OutsideMap)
+	if(Params.m_OutsideMap || Params.m_OriginActive)
 	{
 		if(Params.m_EntityOverlayVal && m_pTiles)
 		{
