@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #include "plasma.h"
 
 #include "character.h"
@@ -86,7 +86,7 @@ void CPlasma::Move()
 
 bool CPlasma::HitCharacter(CCharacter *pTarget)
 {
-	vec2 IntersectPos;
+	wvec2 IntersectPos;
 	CCharacter *pHitPlayer = GameWorld()->IntersectCharacter(
 		m_Pos, m_Pos + m_Core, 0.0f, IntersectPos, nullptr, m_ForClientId);
 	if(!pHitPlayer)

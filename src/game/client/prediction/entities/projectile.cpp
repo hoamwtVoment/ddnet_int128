@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "projectile.h"
 
@@ -16,8 +16,8 @@ CProjectile::CProjectile(
 	CGameWorld *pGameWorld,
 	int Type,
 	int Owner,
-	vec2 Pos,
-	vec2 Dir,
+	wvec2 Pos,
+	wvec2 Dir,
 	int Span,
 	bool Freeze,
 	bool Explosive,
@@ -45,7 +45,7 @@ CProjectile::CProjectile(
 	GameWorld()->InsertEntity(this);
 }
 
-vec2 CProjectile::GetPos(float Time)
+wvec2 CProjectile::GetPos(float Time)
 {
 	float Curvature = 0;
 	float Speed = 0;
@@ -76,10 +76,10 @@ void CProjectile::Tick()
 {
 	float Pt = (GameWorld()->GameTick() - m_StartTick - 1) / (float)GameWorld()->GameTickSpeed();
 	float Ct = (GameWorld()->GameTick() - m_StartTick) / (float)GameWorld()->GameTickSpeed();
-	vec2 PrevPos = GetPos(Pt);
-	vec2 CurPos = GetPos(Ct);
-	vec2 ColPos;
-	vec2 NewPos;
+	wvec2 PrevPos = GetPos(Pt);
+	wvec2 CurPos = GetPos(Ct);
+	wvec2 ColPos;
+	wvec2 NewPos;
 	int Collide = Collision()->IntersectLine(PrevPos, CurPos, &ColPos, &NewPos);
 	CCharacter *pOwnerChar = GameWorld()->GetCharacterById(m_Owner);
 
@@ -139,7 +139,7 @@ void CProjectile::Tick()
 		else if(m_Type == WEAPON_GUN)
 		{
 			if(GameWorld()->m_WorldConfig.m_IsDDRace && GameWorld()->m_WorldConfig.m_PredictDDRace)
-				GameWorld()->CreatePredictedDamageIndEvent(CurPos, -std::atan2(m_Direction.x, m_Direction.y), 10, m_StartTick);
+				GameWorld()->CreatePredictedDamageIndEvent(CurPos, -std::atan2(m_Direction.x.to_float(), m_Direction.y.to_float()), 10, m_StartTick);
 			m_MarkedForDestroy = true;
 		}
 		else if(!m_Freeze)

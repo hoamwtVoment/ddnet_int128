@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_CLIENT_PREDICTION_GAMEWORLD_H
 #define GAME_CLIENT_PREDICTION_GAMEWORLD_H
@@ -41,9 +41,9 @@ public:
 
 	CEntity *FindFirst(int Type);
 	CEntity *FindLast(int Type);
-	int FindEntities(vec2 Pos, float Radius, CEntity **ppEnts, int Max, int Type);
-	CCharacter *IntersectCharacter(vec2 Pos0, vec2 Pos1, float Radius, vec2 &NewPos, const CCharacter *pNotThis = nullptr, int CollideWith = -1, const CCharacter *pThisOnly = nullptr);
-	CEntity *IntersectEntity(vec2 Pos0, vec2 Pos1, float Radius, int Type, vec2 &NewPos, const CEntity *pNotThis = nullptr, int CollideWith = -1, const CEntity *pThisOnly = nullptr);
+	int FindEntities(wvec2 Pos, float Radius, CEntity **ppEnts, int Max, int Type);
+	CCharacter *IntersectCharacter(wvec2 Pos0, wvec2 Pos1, float Radius, wvec2 &NewPos, const CCharacter *pNotThis = nullptr, int CollideWith = -1, const CCharacter *pThisOnly = nullptr);
+	CEntity *IntersectEntity(wvec2 Pos0, wvec2 Pos1, float Radius, int Type, wvec2 &NewPos, const CEntity *pNotThis = nullptr, int CollideWith = -1, const CEntity *pThisOnly = nullptr);
 	void InsertEntity(CEntity *pEntity, bool Last = false);
 	void RemoveEntity(CEntity *pEntity);
 	void RemoveCharacter(CCharacter *pChar);
@@ -51,7 +51,7 @@ public:
 
 	// DDRace
 	void ReleaseHooked(int ClientId);
-	std::vector<CCharacter *> IntersectedCharacters(vec2 Pos0, vec2 Pos1, float Radius, const CEntity *pNotThis = nullptr);
+	std::vector<CCharacter *> IntersectedCharacters(wvec2 Pos0, wvec2 Pos1, float Radius, const CEntity *pNotThis = nullptr);
 
 	int m_GameTick;
 
@@ -66,7 +66,7 @@ public:
 	CCharacter *GetCharacterById(int Id) { return (Id >= 0 && Id < MAX_CLIENTS) ? m_apCharacters[Id] : nullptr; }
 
 	// from gamecontext
-	void CreateExplosion(vec2 Pos, int Owner, int Weapon, bool NoDamage, int ActivatedTeam, CClientMask Mask, int Id = -1);
+	void CreateExplosion(wvec2 Pos, int Owner, int Weapon, bool NoDamage, int ActivatedTeam, CClientMask Mask, int Id = -1);
 
 	// for client side prediction
 	struct
@@ -115,15 +115,15 @@ public:
 	{
 	public:
 		int m_EventId;
-		vec2 m_Pos; // NetEvent's Pos are integers
+		wvec2 m_Pos; // NetEvent's Pos are integers
 		int m_Id; // identifier to prevent adding the same event multiple times
 		int m_Tick;
 
 		int m_ExtraInfo;
 		bool m_Handled = false;
 
-		CPredictedEvent(int EventId, vec2 Pos, int Id, int Tick, int ExtraInfo = -1) :
-			m_EventId(EventId), m_Pos(vec2((int)Pos.x, (int)Pos.y)), m_Id(Id), m_Tick(Tick), m_ExtraInfo(ExtraInfo)
+		CPredictedEvent(int EventId, wvec2 Pos, int Id, int Tick, int ExtraInfo = -1) :
+			m_EventId(EventId), m_Pos(wvec2((int)Pos.x, (int)Pos.y)), m_Id(Id), m_Tick(Tick), m_ExtraInfo(ExtraInfo)
 		{
 		}
 	};
@@ -134,10 +134,10 @@ public:
 	bool CheckPredictedEventHandled(const CPredictedEvent &CheckEvent);
 	void PlayPredictedEvents(int Tick);
 
-	void CreatePredictedSound(vec2 Pos, int SoundId, int Id = -1);
-	void CreatePredictedExplosionEvent(vec2 Pos, int Id = -1);
-	void CreatePredictedHammerHitEvent(vec2 Pos, int Id = -1);
-	void CreatePredictedDamageIndEvent(vec2 Pos, float Angle, int Amount, int Id = -1);
+	void CreatePredictedSound(wvec2 Pos, int SoundId, int Id = -1);
+	void CreatePredictedExplosionEvent(wvec2 Pos, int Id = -1);
+	void CreatePredictedHammerHitEvent(wvec2 Pos, int Id = -1);
+	void CreatePredictedDamageIndEvent(wvec2 Pos, float Angle, int Amount, int Id = -1);
 
 private:
 	void RemoveEntities();

@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #include "door.h"
 
 #include "character.h"
@@ -26,13 +26,13 @@ void CDoor::ResetCollision()
 
 	m_Active = true;
 
-	vec2 Dir = m_To - m_Pos;
+	wvec2 Dir = m_To - m_Pos;
 	m_Length = length(Dir);
-	m_Direction = normalize_pre_length(Dir, static_cast<float>(m_Length));
+	m_Direction = normalize_pre_length(Dir, wcoord(m_Length));
 
 	for(int i = 0; i < m_Length - 1; i++)
 	{
-		vec2 CurrentPos = m_Pos + m_Direction * i;
+		wvec2 CurrentPos = m_Pos + m_Direction * i;
 
 		CDoorTile DoorTile;
 		Collision()->GetDoorTile(Collision()->GetPureMapIndex(CurrentPos), &DoorTile);
@@ -53,7 +53,7 @@ void CDoor::Destroy()
 	{
 		for(int i = 0; i < m_Length - 1; i++)
 		{
-			vec2 CurrentPos = m_Pos + m_Direction * i;
+			wvec2 CurrentPos = m_Pos + m_Direction * i;
 			if(Collision()->CheckPoint(CurrentPos))
 				break;
 			else

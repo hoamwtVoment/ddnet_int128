@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "character.h"
 
@@ -44,7 +44,7 @@ bool CCharacter::IsGrounded()
 	if(Collision()->IsOnGround(m_Pos, GetProximityRadius()))
 		return true;
 
-	int MoveRestrictionsBelow = Collision()->GetMoveRestrictions(m_Pos + vec2(0, GetProximityRadius() / 2 + 4), 0.0f);
+	int MoveRestrictionsBelow = Collision()->GetMoveRestrictions(m_Pos + wvec2(0, GetProximityRadius() / 2 + 4), 0.0f);
 	return (MoveRestrictionsBelow & CANTMOVE_DOWN) != 0;
 }
 
@@ -56,7 +56,7 @@ void CCharacter::HandleJetpack()
 	if(m_Core.m_ActiveWeapon < 0)
 		return;
 
-	vec2 Direction = normalize(vec2(m_LatestInput.m_TargetX, m_LatestInput.m_TargetY));
+	wvec2 Direction = normalize(wvec2(m_LatestInput.m_TargetX, m_LatestInput.m_TargetY));
 
 	bool FullAuto = false;
 	if(m_Core.m_ActiveWeapon == WEAPON_GRENADE || m_Core.m_ActiveWeapon == WEAPON_SHOTGUN || m_Core.m_ActiveWeapon == WEAPON_LASER)
@@ -130,11 +130,11 @@ void CCharacter::HandleNinja()
 	{
 		// Set velocity
 		m_Core.m_Vel = m_Core.m_Ninja.m_ActivationDir * g_pData->m_Weapons.m_Ninja.m_Velocity;
-		vec2 OldPos = m_Pos;
-		Collision()->MoveBox(&m_Core.m_Pos, &m_Core.m_Vel, vec2(m_ProximityRadius, m_ProximityRadius), vec2(GetTuning(GetOverriddenTuneZone())->m_GroundElasticityX, GetTuning(GetOverriddenTuneZone())->m_GroundElasticityY));
+		wvec2 OldPos = m_Pos;
+		Collision()->MoveBox(&m_Core.m_Pos, &m_Core.m_Vel, wvec2(m_ProximityRadius, m_ProximityRadius), vec2(GetTuning(GetOverriddenTuneZone())->m_GroundElasticityX, GetTuning(GetOverriddenTuneZone())->m_GroundElasticityY));
 
 		// reset velocity so the client doesn't predict stuff
-		m_Core.m_Vel = vec2(0.f, 0.f);
+		m_Core.m_Vel = wvec2(0.f, 0.f);
 
 		// check if we Hit anything along the way
 		{
@@ -182,7 +182,7 @@ void CCharacter::HandleNinja()
 				dbg_assert(m_NumObjectsHit < MAX_CLIENTS, "m_aHitObjects overflow");
 				m_aHitObjects[m_NumObjectsHit++] = ClientId;
 
-				pChr->TakeDamage(vec2(0, -10.0f), g_pData->m_Weapons.m_Ninja.m_pBase->m_Damage, GetCid(), WEAPON_NINJA);
+				pChr->TakeDamage(wvec2(0, -10.0f), g_pData->m_Weapons.m_Ninja.m_pBase->m_Damage, GetCid(), WEAPON_NINJA);
 			}
 		}
 
@@ -264,7 +264,7 @@ void CCharacter::FireWeapon()
 		return;
 
 	DoWeaponSwitch();
-	vec2 Direction = normalize(vec2(m_LatestInput.m_TargetX, m_LatestInput.m_TargetY));
+	wvec2 Direction = normalize(wvec2(m_LatestInput.m_TargetX, m_LatestInput.m_TargetY));
 
 	bool FullAuto = false;
 	if(m_Core.m_ActiveWeapon == WEAPON_GRENADE || m_Core.m_ActiveWeapon == WEAPON_SHOTGUN || m_Core.m_ActiveWeapon == WEAPON_LASER)
@@ -306,7 +306,7 @@ void CCharacter::FireWeapon()
 		return;
 	}
 
-	vec2 ProjStartPos = m_Pos + Direction * m_ProximityRadius * 0.75f;
+	wvec2 ProjStartPos = m_Pos + Direction * m_ProximityRadius * 0.75f;
 
 	switch(m_Core.m_ActiveWeapon)
 	{
@@ -335,19 +335,19 @@ void CCharacter::FireWeapon()
 			else
 				GameWorld()->CreatePredictedHammerHitEvent(ProjStartPos, GetCid());
 
-			vec2 Dir;
+			wvec2 Dir;
 			if(length(pTarget->m_Pos - m_Pos) > 0.0f)
 				Dir = normalize(pTarget->m_Pos - m_Pos);
 			else
-				Dir = vec2(0.f, -1.f);
+				Dir = wvec2(0.f, -1.f);
 
 			float Strength = GetTuning(GetOverriddenTuneZone())->m_HammerStrength;
 
-			vec2 Temp = pTarget->m_Core.m_Vel + normalize(Dir + vec2(0.f, -1.1f)) * 10.0f;
+			wvec2 Temp = pTarget->m_Core.m_Vel + normalize(Dir + wvec2(0.f, -1.1f)) * 10.0f;
 			Temp = ClampVel(pTarget->m_MoveRestrictions, Temp);
 			Temp -= pTarget->m_Core.m_Vel;
 
-			vec2 Force = vec2(0.f, -1.0f) + Temp;
+			wvec2 Force = wvec2(0.f, -1.0f) + Temp;
 
 			if(GameWorld()->m_WorldConfig.m_IsFNG)
 			{
@@ -643,9 +643,9 @@ void CCharacter::TickDeferred()
 	m_Pos = m_Core.m_Pos;
 }
 
-bool CCharacter::TakeDamage(vec2 Force, int Dmg, int From, int Weapon)
+bool CCharacter::TakeDamage(wvec2 Force, int Dmg, int From, int Weapon)
 {
-	vec2 Temp = m_Core.m_Vel + Force;
+	wvec2 Temp = m_Core.m_Vel + Force;
 	m_Core.m_Vel = ClampVel(m_MoveRestrictions, Temp);
 	return true;
 }
@@ -675,7 +675,7 @@ void CCharacter::HandleSkippableTiles(int Index)
 	// handle speedup tiles
 	if(Collision()->IsSpeedup(Index))
 	{
-		vec2 Direction, TempVel = m_Core.m_Vel;
+		wvec2 Direction, TempVel = m_Core.m_Vel;
 		int Force, Type, MaxSpeed = 0;
 		Collision()->GetSpeedup(Index, &Direction, &Force, &MaxSpeed, &Type);
 
@@ -693,9 +693,9 @@ void CCharacter::HandleSkippableTiles(int Index)
 				if(MaxSpeed > 0)
 				{
 					if(Direction.x > 0.0000001f)
-						SpeederAngle = -std::atan(Direction.y / Direction.x);
+						SpeederAngle = -std::atan(Direction.y.to_float() / Direction.x.to_float());
 					else if(Direction.x < 0.0000001f)
-						SpeederAngle = std::atan(Direction.y / Direction.x) + 2.0f * std::asin(1.0f);
+						SpeederAngle = std::atan(Direction.y.to_float() / Direction.x.to_float()) + 2.0f * std::asin(1.0f);
 					else if(Direction.y > 0.0000001f)
 						SpeederAngle = std::asin(1.0f);
 					else
@@ -705,9 +705,9 @@ void CCharacter::HandleSkippableTiles(int Index)
 						SpeederAngle = 4.0f * std::asin(1.0f) + SpeederAngle;
 
 					if(TempVel.x > 0.0000001f)
-						TeeAngle = -std::atan(TempVel.y / TempVel.x);
+						TeeAngle = -std::atan(TempVel.y.to_float() / TempVel.x.to_float());
 					else if(TempVel.x < 0.0000001f)
-						TeeAngle = std::atan(TempVel.y / TempVel.x) + 2.0f * std::asin(1.0f);
+						TeeAngle = std::atan(TempVel.y.to_float() / TempVel.x.to_float()) + 2.0f * std::asin(1.0f);
 					else if(TempVel.y > 0.0000001f)
 						TeeAngle = std::asin(1.0f);
 					else
@@ -716,7 +716,7 @@ void CCharacter::HandleSkippableTiles(int Index)
 					if(TeeAngle < 0)
 						TeeAngle = 4.0f * std::asin(1.0f) + TeeAngle;
 
-					TeeSpeed = std::sqrt(std::pow(TempVel.x, 2) + std::pow(TempVel.y, 2));
+					TeeSpeed = std::sqrt(std::pow(TempVel.x.to_float(), 2) + std::pow(TempVel.y.to_float(), 2));
 
 					DiffAngle = SpeederAngle - TeeAngle;
 					SpeedLeft = MaxSpeed / 5.0f - std::cos(DiffAngle) * TeeSpeed;
@@ -1240,22 +1240,22 @@ void CCharacter::GiveAllWeapons()
 
 void CCharacter::ResetVelocity()
 {
-	m_Core.m_Vel = vec2(0, 0);
+	m_Core.m_Vel = wvec2(0, 0);
 }
 
 // The method is needed only to reproduce 'shotgun bug' ddnet#5258
 // Use SetVelocity() instead.
-void CCharacter::SetVelocity(const vec2 NewVelocity)
+void CCharacter::SetVelocity(const wvec2 NewVelocity)
 {
 	m_Core.m_Vel = ClampVel(m_MoveRestrictions, NewVelocity);
 }
 
-void CCharacter::SetRawVelocity(const vec2 NewVelocity)
+void CCharacter::SetRawVelocity(const wvec2 NewVelocity)
 {
 	m_Core.m_Vel = NewVelocity;
 }
 
-void CCharacter::AddVelocity(const vec2 Addition)
+void CCharacter::AddVelocity(const wvec2 Addition)
 {
 	SetVelocity(m_Core.m_Vel + Addition);
 }
@@ -1271,7 +1271,7 @@ CTeamsCore *CCharacter::TeamsCore()
 }
 
 CCharacter::CCharacter(CGameWorld *pGameWorld, int Id, CNetObj_Character *pChar, CNetObj_DDNetCharacter *pExtended) :
-	CEntity(pGameWorld, CGameWorld::ENTTYPE_CHARACTER, vec2(0, 0), CCharacterCore::PhysicalSize())
+	CEntity(pGameWorld, CGameWorld::ENTTYPE_CHARACTER, wvec2(0, 0), CCharacterCore::PhysicalSize())
 {
 	m_Id = Id;
 	m_IsLocal = false;
@@ -1279,11 +1279,11 @@ CCharacter::CCharacter(CGameWorld *pGameWorld, int Id, CNetObj_Character *pChar,
 	m_LastWeapon = WEAPON_HAMMER;
 	m_QueuedWeapon = -1;
 	m_LastRefillJumps = false;
-	m_PrevPrevPos = m_PrevPos = m_Pos = vec2(pChar->m_X, pChar->m_Y);
+	m_PrevPrevPos = m_PrevPos = m_Pos = wvec2(pChar->m_X, pChar->m_Y);
 	m_Core.Reset();
 	m_Core.Init(&GameWorld()->m_Core, GameWorld()->Collision(), GameWorld()->Teams());
 	m_Core.m_Id = Id;
-	mem_zero(&m_Core.m_Ninja, sizeof(m_Core.m_Ninja));
+	m_Core.m_Ninja = {};
 	m_Core.m_LeftWall = true;
 	m_ReloadTimer = 0;
 	m_NumObjectsHit = 0;
@@ -1399,7 +1399,7 @@ void CCharacter::Read(CNetObj_Character *pChar, CNetObj_DDNetCharacter *pExtende
 			{
 				if(m_Core.m_ActiveWeapon == WEAPON_NINJA)
 				{
-					SetNinjaActivationDir(vec2(0, 0));
+					SetNinjaActivationDir(wvec2(0, 0));
 					SetNinjaActivationTick(-500);
 					SetNinjaCurrentMoveTime(0);
 				}
@@ -1466,7 +1466,7 @@ void CCharacter::Read(CNetObj_Character *pChar, CNetObj_DDNetCharacter *pExtende
 		m_TuneZoneOverride = TuneZone::OVERRIDE_NONE;
 	}
 
-	vec2 PosBefore = m_Pos;
+	wvec2 PosBefore = m_Pos;
 	m_Pos = m_Core.m_Pos;
 
 	if(distance(PosBefore, m_Pos) > 2.f) // misprediction, don't use prevpos

@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "laser.h"
 
@@ -12,7 +12,7 @@
 #include <game/collision.h>
 #include <game/mapitems.h>
 
-CLaser::CLaser(CGameWorld *pGameWorld, vec2 Pos, vec2 Direction, float StartEnergy, int Owner, int Type) :
+CLaser::CLaser(CGameWorld *pGameWorld, wvec2 Pos, wvec2 Direction, float StartEnergy, int Owner, int Type) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_LASER)
 {
 	m_Pos = Pos;
@@ -30,10 +30,10 @@ CLaser::CLaser(CGameWorld *pGameWorld, vec2 Pos, vec2 Direction, float StartEner
 	DoBounce();
 }
 
-bool CLaser::HitCharacter(vec2 From, vec2 To)
+bool CLaser::HitCharacter(wvec2 From, wvec2 To)
 {
-	static const vec2 StackedLaserShotgunBugSpeed = vec2(-2147483648.0f, -2147483648.0f);
-	vec2 At;
+	static const wvec2 StackedLaserShotgunBugSpeed = wvec2(-2147483648.0f, -2147483648.0f);
+	wvec2 At;
 	CCharacter *pOwnerChar = GameWorld()->GetCharacterById(m_Owner);
 	CCharacter *pHit;
 	bool DontHitSelf = (g_Config.m_SvOldLaser || !GameWorld()->m_WorldConfig.m_IsDDRace) || (m_Bounces == 0);
@@ -52,7 +52,7 @@ bool CLaser::HitCharacter(vec2 From, vec2 To)
 	{
 		float Strength = TuningList()[m_TuneZone].m_ShotgunStrength;
 
-		const vec2 &HitPos = pHit->Core()->m_Pos;
+		const wvec2 &HitPos = pHit->Core()->m_Pos;
 		if(!g_Config.m_SvOldLaser)
 		{
 			if(m_PrevPos != HitPos)
@@ -98,10 +98,10 @@ void CLaser::DoBounce()
 		return;
 	}
 	m_PrevPos = m_Pos;
-	vec2 Coltile;
+	wvec2 Coltile;
 
 	int Res;
-	vec2 To = m_Pos + m_Dir * m_Energy;
+	wvec2 To = m_Pos + m_Dir * m_Energy;
 
 	Res = Collision()->IntersectLineTeleWeapon(m_Pos, To, &Coltile, &To);
 
@@ -113,8 +113,8 @@ void CLaser::DoBounce()
 			m_From = m_Pos;
 			m_Pos = To;
 
-			vec2 TempPos = m_Pos;
-			vec2 TempDir = m_Dir * 4.0f;
+			wvec2 TempPos = m_Pos;
+			wvec2 TempDir = m_Dir * 4.0f;
 
 			int f = 0;
 			if(Res == -1)
@@ -207,8 +207,8 @@ bool CLaser::Match(CLaser *pLaser)
 		return false;
 	if(distance(pLaser->m_From, m_From) > 2.f)
 		return false;
-	const vec2 ThisDiff = m_Pos - m_From;
-	const vec2 OtherDiff = pLaser->m_Pos - pLaser->m_From;
+	const wvec2 ThisDiff = m_Pos - m_From;
+	const wvec2 OtherDiff = pLaser->m_Pos - pLaser->m_From;
 	const float DirError = distance(normalize(OtherDiff) * length(ThisDiff), ThisDiff);
 	return DirError <= 2.f;
 }

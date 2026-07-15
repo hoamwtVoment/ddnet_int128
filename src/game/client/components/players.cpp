@@ -350,7 +350,7 @@ void CPlayers::RenderHookCollLine(
 		HookEnteredTelehook = true;
 
 		// check tele outs
-		const std::vector<vec2> &vTeleOuts = Collision()->TeleOuts(Tele - 1);
+		const std::vector<wvec2> &vTeleOuts = Collision()->TeleOuts(Tele - 1);
 		if(vTeleOuts.empty())
 		{
 			// the hook gets stuck, this is a feature or a bug

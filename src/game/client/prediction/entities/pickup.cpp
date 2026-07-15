@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "pickup.h"
 
@@ -52,7 +52,7 @@ void CPickup::Tick()
 						CreateSound = true;
 					}
 				}
-				pChr->SetNinjaActivationDir(vec2(0, 0));
+				pChr->SetNinjaActivationDir(wvec2(0, 0));
 				pChr->SetNinjaActivationTick(-500);
 				pChr->SetNinjaCurrentMoveTime(0);
 				if(CreateSound)
@@ -101,7 +101,7 @@ void CPickup::Tick()
 					continue;
 				if(pChr->Team() == TEAM_SUPER)
 					continue;
-				pChr->SetNinjaActivationDir(vec2(0, 0));
+				pChr->SetNinjaActivationDir(wvec2(0, 0));
 				pChr->SetNinjaActivationTick(-500);
 				pChr->SetNinjaCurrentMoveTime(0);
 				break;
@@ -166,12 +166,12 @@ void CPickup::Move()
 }
 
 CPickup::CPickup(CGameWorld *pGameWorld, int Id, const CPickupData *pPickup) :
-	CEntity(pGameWorld, CGameWorld::ENTTYPE_PICKUP, vec2(0, 0), PICKUP_PHYSICS_RADIUS)
+	CEntity(pGameWorld, CGameWorld::ENTTYPE_PICKUP, wvec2(0, 0), PICKUP_PHYSICS_RADIUS)
 {
 	m_Pos = pPickup->m_Pos;
 	m_Type = pPickup->m_Type;
 	m_Subtype = pPickup->m_Subtype;
-	m_Core = vec2(0.f, 0.f);
+	m_Core = wvec2(0.f, 0.f);
 	m_IsCoreActive = false;
 	m_Id = Id;
 	m_Number = pPickup->m_SwitchNumber;

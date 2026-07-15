@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #ifndef GAME_CLIENT_PREDICTION_ENTITIES_PLASMA_H
 #define GAME_CLIENT_PREDICTION_ENTITIES_PLASMA_H
 
@@ -8,7 +8,7 @@ class CLaserData;
 
 class CPlasma : public CEntity
 {
-	vec2 m_Core;
+	wvec2 m_Core;
 	bool m_Freeze;
 	bool m_Explosive;
 	int m_ForClientId;

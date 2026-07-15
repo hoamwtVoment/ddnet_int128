@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #ifndef GAME_CLIENT_PREDICTION_ENTITIES_DOOR_H
 #define GAME_CLIENT_PREDICTION_ENTITIES_DOOR_H
 
@@ -8,8 +8,8 @@ class CLaserData;
 
 class CDoor : public CEntity
 {
-	vec2 m_To;
-	vec2 m_Direction;
+	wvec2 m_To;
+	wvec2 m_Direction;
 	int m_Length;
 	bool m_Active;
 

@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_CLIENT_PREDICTION_ENTITY_H
 #define GAME_CLIENT_PREDICTION_ENTITY_H
@@ -27,7 +27,7 @@ protected:
 public:
 	int GetId() const { return m_Id; }
 
-	CEntity(CGameWorld *pGameWorld, int Objtype, vec2 Pos = vec2(0, 0), int ProximityRadius = 0);
+	CEntity(CGameWorld *pGameWorld, int Objtype, wvec2 Pos = wvec2(0, 0), int ProximityRadius = 0);
 	virtual ~CEntity();
 
 	std::vector<SSwitchers> &Switchers() { return m_pGameWorld->Switchers(); }
@@ -38,7 +38,7 @@ public:
 	class CCollision *Collision() { return GameWorld()->Collision(); }
 	CEntity *TypeNext() { return m_pNextTypeEntity; }
 	CEntity *TypePrev() { return m_pPrevTypeEntity; }
-	const vec2 &GetPos() const { return m_Pos; }
+	const wvec2 &GetPos() const { return m_Pos; }
 	float GetProximityRadius() const { return m_ProximityRadius; }
 	virtual bool CanCollide(int ClientId) { return true; }
 
@@ -47,9 +47,9 @@ public:
 	virtual void Tick() {}
 	virtual void TickDeferred() {}
 
-	bool GameLayerClipped(vec2 CheckPos);
+	bool GameLayerClipped(wvec2 CheckPos);
 	float m_ProximityRadius;
-	vec2 m_Pos;
+	wvec2 m_Pos;
 	int m_Number;
 	int m_Layer;
 

@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #include "dragger.h"
 
 #include "character.h"
@@ -132,7 +132,7 @@ void CDragger::DraggerBeamTick()
 CDragger::CDragger(CGameWorld *pGameWorld, int Id, const CLaserData *pData) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_DRAGGER)
 {
-	m_Core = vec2(0.f, 0.f);
+	m_Core = wvec2(0.f, 0.f);
 	m_Id = Id;
 	m_TargetId = -1;
 

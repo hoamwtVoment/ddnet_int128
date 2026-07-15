@@ -1,4 +1,4 @@
-/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
+﻿/* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #ifndef GAME_CLIENT_PREDICTION_ENTITIES_DRAGGER_H
 #define GAME_CLIENT_PREDICTION_ENTITIES_DRAGGER_H
 
@@ -8,7 +8,7 @@ class CLaserData;
 
 class CDragger : public CEntity
 {
-	vec2 m_Core;
+	wvec2 m_Core;
 	float m_Strength;
 	bool m_IgnoreWalls;
 	int m_TargetId;

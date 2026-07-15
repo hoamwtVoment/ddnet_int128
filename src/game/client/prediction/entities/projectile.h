@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_CLIENT_PREDICTION_ENTITIES_PROJECTILE_H
 #define GAME_CLIENT_PREDICTION_ENTITIES_PROJECTILE_H
@@ -17,8 +17,8 @@ public:
 		CGameWorld *pGameWorld,
 		int Type,
 		int Owner,
-		vec2 Pos,
-		vec2 Dir,
+		wvec2 Pos,
+		wvec2 Dir,
 		int Span,
 		bool Freeze,
 		bool Explosive,
@@ -26,7 +26,7 @@ public:
 		int Layer = 0,
 		int Number = 0);
 
-	vec2 GetPos(float Time);
+	wvec2 GetPos(float Time);
 	CProjectileData GetData() const;
 
 	void Tick() override;
@@ -34,13 +34,13 @@ public:
 	bool Match(CProjectile *pProj);
 	void SetBouncing(int Value);
 
-	const vec2 &GetDirection() const { return m_Direction; }
+	const wvec2 &GetDirection() const { return m_Direction; }
 	const int &GetOwner() const { return m_Owner; }
 	const int &GetStartTick() const { return m_StartTick; }
 	CProjectile(CGameWorld *pGameWorld, int Id, const CProjectileData *pProj);
 
 private:
-	vec2 m_Direction;
+	wvec2 m_Direction;
 	int m_LifeSpan;
 	int m_Owner;
 	int m_Type;

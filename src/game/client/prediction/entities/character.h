@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_CLIENT_PREDICTION_ENTITIES_CHARACTER_H
 #define GAME_CLIENT_PREDICTION_ENTITIES_CHARACTER_H
@@ -50,16 +50,16 @@ public:
 	void ResetInput();
 	void FireWeapon();
 
-	bool TakeDamage(vec2 Force, int Dmg, int From, int Weapon);
+	bool TakeDamage(wvec2 Force, int Dmg, int From, int Weapon);
 
 	void GiveWeapon(int Weapon, bool Remove = false);
 	void GiveNinja();
 	void RemoveNinja();
 
 	void ResetVelocity();
-	void SetVelocity(vec2 NewVelocity);
-	void SetRawVelocity(vec2 NewVelocity);
-	void AddVelocity(vec2 Addition);
+	void SetVelocity(wvec2 NewVelocity);
+	void SetRawVelocity(wvec2 NewVelocity);
+	void AddVelocity(wvec2 Addition);
 	void ApplyMoveRestrictions();
 
 	bool m_IsLocal;
@@ -75,8 +75,8 @@ public:
 	bool m_NinjaJetpack;
 	int m_FreezeTime;
 	bool m_FrozenLastTick;
-	vec2 m_PrevPos;
-	vec2 m_PrevPrevPos;
+	wvec2 m_PrevPos;
+	wvec2 m_PrevPrevPos;
 	int m_TeleCheckpoint;
 
 	int m_TileIndex;
@@ -96,7 +96,7 @@ public:
 	void SetWeaponGot(int Type, bool Value) { m_Core.m_aWeapons[Type].m_Got = Value; }
 	int GetWeaponAmmo(int Type) { return m_Core.m_aWeapons[Type].m_Ammo; }
 	void SetWeaponAmmo(int Type, int Value) { m_Core.m_aWeapons[Type].m_Ammo = Value; }
-	void SetNinjaActivationDir(vec2 ActivationDir) { m_Core.m_Ninja.m_ActivationDir = ActivationDir; }
+	void SetNinjaActivationDir(wvec2 ActivationDir) { m_Core.m_Ninja.m_ActivationDir = ActivationDir; }
 	void SetNinjaActivationTick(int ActivationTick) { m_Core.m_Ninja.m_ActivationTick = ActivationTick; }
 	void SetNinjaCurrentMoveTime(int CurrentMoveTime) { m_Core.m_Ninja.m_CurrentMoveTime = CurrentMoveTime; }
 	int GetCid() { return m_Id; }

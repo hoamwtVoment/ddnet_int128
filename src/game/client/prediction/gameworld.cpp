@@ -1,4 +1,4 @@
-/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+﻿/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 
 #include "gameworld.h"
@@ -71,7 +71,7 @@ CEntity *CGameWorld::FindLast(int Type)
 	return pLast;
 }
 
-int CGameWorld::FindEntities(vec2 Pos, float Radius, CEntity **ppEnts, int Max, int Type)
+int CGameWorld::FindEntities(wvec2 Pos, float Radius, CEntity **ppEnts, int Max, int Type)
 {
 	if(Type < 0 || Type >= NUM_ENTTYPES)
 		return 0;
@@ -259,12 +259,12 @@ void CGameWorld::Tick()
 	OnModified();
 }
 
-CCharacter *CGameWorld::IntersectCharacter(vec2 Pos0, vec2 Pos1, float Radius, vec2 &NewPos, const CCharacter *pNotThis, int CollideWith, const CCharacter *pThisOnly)
+CCharacter *CGameWorld::IntersectCharacter(wvec2 Pos0, wvec2 Pos1, float Radius, wvec2 &NewPos, const CCharacter *pNotThis, int CollideWith, const CCharacter *pThisOnly)
 {
 	return (CCharacter *)IntersectEntity(Pos0, Pos1, Radius, ENTTYPE_CHARACTER, NewPos, pNotThis, CollideWith, pThisOnly);
 }
 
-CEntity *CGameWorld::IntersectEntity(vec2 Pos0, vec2 Pos1, float Radius, int Type, vec2 &NewPos, const CEntity *pNotThis, int CollideWith, const CEntity *pThisOnly)
+CEntity *CGameWorld::IntersectEntity(wvec2 Pos0, wvec2 Pos1, float Radius, int Type, wvec2 &NewPos, const CEntity *pNotThis, int CollideWith, const CEntity *pThisOnly)
 {
 	float ClosestLen = distance(Pos0, Pos1) * 100.0f;
 	CEntity *pClosest = nullptr;
@@ -281,7 +281,7 @@ CEntity *CGameWorld::IntersectEntity(vec2 Pos0, vec2 Pos1, float Radius, int Typ
 		if(CollideWith != -1 && !pEntity->CanCollide(CollideWith))
 			continue;
 
-		vec2 IntersectPos;
+		wvec2 IntersectPos;
 		if(closest_point_on_line(Pos0, Pos1, pEntity->m_Pos, IntersectPos))
 		{
 			float Len = distance(pEntity->m_Pos, IntersectPos);
@@ -301,7 +301,7 @@ CEntity *CGameWorld::IntersectEntity(vec2 Pos0, vec2 Pos1, float Radius, int Typ
 	return pClosest;
 }
 
-std::vector<CCharacter *> CGameWorld::IntersectedCharacters(vec2 Pos0, vec2 Pos1, float Radius, const CEntity *pNotThis)
+std::vector<CCharacter *> CGameWorld::IntersectedCharacters(wvec2 Pos0, wvec2 Pos1, float Radius, const CEntity *pNotThis)
 {
 	std::vector<CCharacter *> vpCharacters;
 	CCharacter *pChr = (CCharacter *)FindFirst(CGameWorld::ENTTYPE_CHARACTER);
@@ -310,7 +310,7 @@ std::vector<CCharacter *> CGameWorld::IntersectedCharacters(vec2 Pos0, vec2 Pos1
 		if(pChr == pNotThis)
 			continue;
 
-		vec2 IntersectPos;
+		wvec2 IntersectPos;
 		if(closest_point_on_line(Pos0, Pos1, pChr->m_Pos, IntersectPos))
 		{
 			float Len = distance(pChr->m_Pos, IntersectPos);
@@ -343,7 +343,7 @@ CEntity *CGameWorld::GetEntity(int Id, int EntityType)
 	return nullptr;
 }
 
-void CGameWorld::CreateExplosion(vec2 Pos, int Owner, int Weapon, bool NoDamage, int ActivatedTeam, CClientMask Mask, int Id)
+void CGameWorld::CreateExplosion(wvec2 Pos, int Owner, int Weapon, bool NoDamage, int ActivatedTeam, CClientMask Mask, int Id)
 {
 	if(Owner < 0 && m_WorldConfig.m_IsSolo && !(Weapon == WEAPON_SHOTGUN && m_WorldConfig.m_IsDDRace))
 		return;
@@ -362,8 +362,8 @@ void CGameWorld::CreateExplosion(vec2 Pos, int Owner, int Weapon, bool NoDamage,
 	for(int i = 0; i < Num; i++)
 	{
 		auto *pChar = static_cast<CCharacter *>(apEnts[i]);
-		vec2 Diff = pChar->m_Pos - Pos;
-		vec2 ForceDir(0, 1);
+		wvec2 Diff = pChar->m_Pos - Pos;
+		wvec2 ForceDir(0, 1);
 		float l = length(Diff);
 		if(l)
 			ForceDir = normalize(Diff);
@@ -468,7 +468,7 @@ void CGameWorld::NetObjAdd(int ObjId, int ObjType, const void *pObjData, const C
 			// otherwise try to determine its owner by checking if there is only one player nearby
 			if(NetProj.m_StartTick >= GameTick() - 4)
 			{
-				const vec2 NetPos = NetProj.m_Pos - normalize(NetProj.m_Direction) * CCharacterCore::PhysicalSize() * 0.75;
+				const wvec2 NetPos = NetProj.m_Pos - normalize(NetProj.m_Direction) * CCharacterCore::PhysicalSize() * 0.75;
 				const bool Prev = (GameTick() - NetProj.m_StartTick) > 1;
 				float First = 200.0f, Second = 200.0f;
 				CCharacter *pClosest = nullptr;
@@ -823,7 +823,7 @@ bool CGameWorld::CheckPredictedEventHandled(const CPredictedEvent &CheckEvent)
 	return true;
 }
 
-void CGameWorld::CreatePredictedSound(vec2 Pos, int SoundId, int Id)
+void CGameWorld::CreatePredictedSound(wvec2 Pos, int SoundId, int Id)
 {
 	if(!g_Config.m_SndEnable)
 		return;
@@ -832,19 +832,19 @@ void CGameWorld::CreatePredictedSound(vec2 Pos, int SoundId, int Id)
 	CreatePredictedEvent(Event);
 }
 
-void CGameWorld::CreatePredictedExplosionEvent(vec2 Pos, int Id)
+void CGameWorld::CreatePredictedExplosionEvent(wvec2 Pos, int Id)
 {
 	CPredictedEvent Event(NETEVENTTYPE_EXPLOSION, Pos, Id, GameTick());
 	CreatePredictedEvent(Event);
 }
 
-void CGameWorld::CreatePredictedHammerHitEvent(vec2 Pos, int Id)
+void CGameWorld::CreatePredictedHammerHitEvent(wvec2 Pos, int Id)
 {
 	CPredictedEvent Event(NETEVENTTYPE_HAMMERHIT, Pos, Id, GameTick());
 	CreatePredictedEvent(Event);
 }
 
-void CGameWorld::CreatePredictedDamageIndEvent(vec2 Pos, float Angle, int Amount, int Id)
+void CGameWorld::CreatePredictedDamageIndEvent(wvec2 Pos, float Angle, int Amount, int Id)
 {
 	float a = 3 * pi / 2 + Angle;
 	float s = a - pi / 3;
