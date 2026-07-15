@@ -234,8 +234,9 @@ bool CRenderLayerGroup::DoRender(const CRenderLayerParams &Params)
 		Graphics()->ClipDisable();
 		if(m_pGroup->m_Version >= 2 && m_pGroup->m_UseClipping)
 		{
-			// Absolute group clips are meaningless when the camera is far outside the map.
-			if(Params.m_OutsideMap || Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f)
+			// Off-map: absolute clip rects cannot contain the camera — still render layers
+			// (vanilla EXTEND / border). Do not skip the whole group.
+			if(Params.m_OutsideMap)
 				return true;
 
 			// set clipping
@@ -278,17 +279,10 @@ void CRenderLayerGroup::Render(const CRenderLayerParams &Params)
 {
 	int ParallaxZoom = std::clamp(std::max(m_pGroup->m_ParallaxX, m_pGroup->m_ParallaxY), 0, 100);
 	float aPoints[4];
-	// GPU translation: absolute camera minus render origin (float-safe view).
-	// Outside the map, ignore parallax so edge stretch lines up with the tee.
-	const float Cx = Params.m_Center.x - Params.m_RenderOrigin.x;
-	const float Cy = Params.m_Center.y - Params.m_RenderOrigin.y;
-	const float ParX = Params.m_OutsideMap ? 100.0f : m_pGroup->m_ParallaxX;
-	const float ParY = Params.m_OutsideMap ? 100.0f : m_pGroup->m_ParallaxY;
-	const float OffX = Params.m_OutsideMap ? 0.0f : m_pGroup->m_OffsetX;
-	const float OffY = Params.m_OutsideMap ? 0.0f : m_pGroup->m_OffsetY;
-	const float ParZoom = Params.m_OutsideMap ? 100.0f : (float)ParallaxZoom;
-	Graphics()->MapScreenToWorld(Cx, Cy, ParX, ParY, ParZoom,
-		OffX, OffY, Graphics()->ScreenAspect(), Params.m_Zoom, aPoints);
+	// Maps always use absolute camera (vanilla hard-draw). Entity render-origin is
+	// only for tees/items — subtracting it here desyncs tile buffers (vanish at 2048-tile cells).
+	Graphics()->MapScreenToWorld(Params.m_Center.x, Params.m_Center.y, m_pGroup->m_ParallaxX, m_pGroup->m_ParallaxY, (float)ParallaxZoom,
+		m_pGroup->m_OffsetX, m_pGroup->m_OffsetY, Graphics()->ScreenAspect(), Params.m_Zoom, aPoints);
 	Graphics()->MapScreen(aPoints[0], aPoints[1], aPoints[2], aPoints[3]);
 }
 
@@ -796,26 +790,13 @@ bool CRenderLayerTile::DoRender(const CRenderLayerParams &Params)
 
 void CRenderLayerTile::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	// Only when MapScreen is origin-shifted does the vanilla path sample the wrong
-	// map slice. Near the border (origin still 0) keep full vanilla draw + EXTEND
-	// so tiles do not vanish the moment you step outside.
-	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
-	if(Params.m_OutsideMap && Params.m_RenderTileBorder && OriginShifted)
-	{
-		RenderHardEdgeStretch(Color, Params);
-		return;
-	}
+	// Always vanilla: map tiles + RenderTileBorder EXTEND. Never swap in a
+	// separate far-lands path that drops all tiles (e.g. at 2048-tile origin cells).
 	RenderTileLayer(Color, Params);
 }
 
 void CRenderLayerTile::RenderTileLayerNoTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
-	if(Params.m_OutsideMap && Params.m_RenderTileBorder && OriginShifted)
-	{
-		RenderHardEdgeStretch(Color, Params);
-		return;
-	}
 	Graphics()->BlendNone();
 	RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, (Params.m_RenderTileBorder ? TILERENDERFLAG_EXTEND : 0) | LAYERRENDERFLAG_OPAQUE);
 	Graphics()->BlendNormal();
@@ -1730,28 +1711,11 @@ void CRenderLayerEntityGame::RenderTileLayerWithTileBuffer(const ColorRGBA &Colo
 {
 	if(Params.m_RenderTileBorder)
 		RenderKillTileBorder(Color.Multiply(GetDeathBorderColor()));
-	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
-	if(Params.m_OutsideMap && OriginShifted)
-	{
-		if(Params.m_EntityOverlayVal)
-			RenderHardEdgeStretch(Color, Params);
-		return;
-	}
 	RenderTileLayer(Color, Params);
 }
 
 void CRenderLayerEntityGame::RenderTileLayerNoTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	const bool OriginShifted = Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f;
-	if(Params.m_OutsideMap && OriginShifted)
-	{
-		if(Params.m_RenderTileBorder)
-			RenderKillTileBorder(Color.Multiply(GetDeathBorderColor()));
-		if(Params.m_EntityOverlayVal)
-			RenderHardEdgeStretch(Color, Params);
-		return;
-	}
-
 	Graphics()->BlendNone();
 	RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, (Params.m_RenderTileBorder ? TILERENDERFLAG_EXTEND : 0) | LAYERRENDERFLAG_OPAQUE);
 	Graphics()->BlendNormal();

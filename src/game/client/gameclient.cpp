@@ -826,26 +826,18 @@ void CGameClient::UpdateRenderOrigin()
 	}
 
 	const vec2 C = m_Camera.m_Center;
-	// Activate once float view width is at risk (~2^24 px) or we leave the map.
-	constexpr float Threshold = 8.0e6f; // pixels
+	// Entity-only GPU origin. Do NOT enable just for leaving the map — that reanchored
+	// every 2048 tiles (CELL_PX/32) and made map layers vanish while still float-safe.
+	// Only when absolute float centers are non-finite or past ~2^24 px risk.
+	constexpr float Threshold = 1.0e7f; // pixels (~312500 tiles); well above 2048-tile cells
 	bool NeedOrigin = !std::isfinite(C.x) || !std::isfinite(C.y) ||
 			  std::abs(C.x) > Threshold || std::abs(C.y) > Threshold;
-
-	if(!NeedOrigin && Collision() && Collision()->GetWidth() > 0)
+	if(!NeedOrigin && HaveChar)
 	{
-		const float MapMaxX = (float)Collision()->GetWidth() * 32.0f;
-		const float MapMaxY = (float)Collision()->GetHeight() * 32.0f;
-		const float Margin = 201.0f * 32.0f;
-		if(C.x < -Margin || C.y < -Margin || C.x > MapMaxX + Margin || C.y > MapMaxY + Margin)
-			NeedOrigin = true;
-	}
-	if(!NeedOrigin && HaveChar && Collision() && Collision()->GetWidth() > 0)
-	{
-		const i128 MapMaxPx = I128((int64_t)Collision()->GetWidth() * 32);
-		const i128 MapMaxPy = I128((int64_t)Collision()->GetHeight() * 32);
-		const i128 Margin = I128(201 * 32);
-		if(CharPx < -Margin || CharPy < -Margin || CharPx > MapMaxPx + Margin || CharPy > MapMaxPy + Margin)
-			NeedOrigin = true;
+		const double Ax = i128_to_double(CharPx);
+		const double Ay = i128_to_double(CharPy);
+		NeedOrigin = !std::isfinite(Ax) || !std::isfinite(Ay) ||
+			     std::abs(Ax) > (double)Threshold || std::abs(Ay) > (double)Threshold;
 	}
 
 	if(NeedOrigin && HaveChar)
