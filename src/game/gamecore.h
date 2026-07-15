@@ -172,6 +172,7 @@ public:
 			pCharacter = nullptr;
 		}
 		m_pPrng = nullptr;
+		m_HoSpeedLimit = true;
 	}
 
 	int RandomOr0(int BelowThis) // NOLINT(readability-make-member-function-const)
@@ -188,6 +189,8 @@ public:
 
 	class CCharacterCore *m_apCharacters[MAX_CLIENTS];
 	CPrng *m_pPrng;
+	// When true: clamp max speed and apply velramp (default DDNet behavior)
+	bool m_HoSpeedLimit;
 
 	void InitSwitchers(int HighestSwitchNumber);
 	std::vector<SSwitchers> m_vSwitchers;

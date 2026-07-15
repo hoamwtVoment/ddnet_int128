@@ -523,13 +523,15 @@ void CCharacterCore::TickDeferred()
 	}
 
 	// clamp the velocity to something sane
-	if(length(m_Vel) > 6000)
+	if((!m_pWorld || m_pWorld->m_HoSpeedLimit) && length(m_Vel) > 6000)
 		m_Vel = normalize(m_Vel) * 6000;
 }
 
 void CCharacterCore::Move()
 {
-	float RampValue = VelocityRamp(length(m_Vel) * 50, m_Tuning.m_VelrampStart, m_Tuning.m_VelrampRange, m_Tuning.m_VelrampCurvature);
+	float RampValue = 1.0f;
+	if(!m_pWorld || m_pWorld->m_HoSpeedLimit)
+		RampValue = VelocityRamp(length(m_Vel) * 50, m_Tuning.m_VelrampStart, m_Tuning.m_VelrampRange, m_Tuning.m_VelrampCurvature);
 
 	m_Vel.x = m_Vel.x * RampValue;
 
