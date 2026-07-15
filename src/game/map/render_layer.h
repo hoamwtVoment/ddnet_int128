@@ -59,17 +59,6 @@ public:
 	bool m_DebugRenderQuadClips;
 	bool m_DebugRenderClusterClips;
 	bool m_DebugRenderTileClips;
-
-	// Far-lands: MapScreen uses absolute world minus absolute cell origin
-	// (GPU translation only; game coords stay absolute i128).
-	vec2 m_RenderOrigin = vec2(0.0f, 0.0f);
-	bool m_FarLands = false;
-	// Absolute camera center in world tiles (edge sampling / kill band).
-	double m_CamTileX = 0.0;
-	double m_CamTileY = 0.0;
-	// Absolute world tile index of render-local (0,0) == origin_px/32.
-	double m_OriginTileX = 0.0;
-	double m_OriginTileY = 0.0;
 };
 
 class CRenderLayer : public CRenderComponent
@@ -228,9 +217,7 @@ protected:
 
 	void RenderTileLayer(const ColorRGBA &Color, const CRenderLayerParams &Params, CTileLayerVisuals *pTileLayerVisuals = nullptr);
 	void RenderTileBorder(const ColorRGBA &Color, int BorderX0, int BorderY0, int BorderX1, int BorderY1, CTileLayerVisuals *pTileLayerVisuals);
-	void RenderKillTileBorder(const ColorRGBA &Color, const CRenderLayerParams &Params);
-	// Fill current MapScreen with edge-clamped tiles (far lands / relative origin).
-	void RenderFarLandsEdgeFill(const ColorRGBA &Color, const CRenderLayerParams &Params);
+	void RenderKillTileBorder(const ColorRGBA &Color);
 
 	std::optional<CRenderLayerTile::CTileLayerVisuals> m_VisualTiles;
 	CMapItemLayerTilemap *m_pLayerTilemap;
@@ -308,7 +295,6 @@ class CRenderLayerEntityGame final : public CRenderLayerEntityBase
 {
 public:
 	CRenderLayerEntityGame(int GroupId, int LayerId, int Flags, CMapItemLayerTilemap *pLayerTilemap);
-	bool DoRender(const CRenderLayerParams &Params) override;
 	void Init() override;
 
 protected:

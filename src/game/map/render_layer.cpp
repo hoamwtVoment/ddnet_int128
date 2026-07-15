@@ -227,21 +227,6 @@ bool CRenderLayer::IsVisibleInClipRegion(const std::optional<CClipRegion> &ClipR
 CRenderLayerGroup::CRenderLayerGroup(int GroupId, CMapItemGroup *pGroup) :
 	CRenderLayer(GroupId, 0, 0), m_pGroup(pGroup) {}
 
-static vec2 EffectiveRenderCenter(const CRenderLayerParams &Params)
-{
-	// GPU translation: absolute camera minus absolute cell origin (not a logical
-	// "relative coordinate system" — world stays absolute; only the float matrix shifts).
-	if(Params.m_FarLands || Params.m_RenderOrigin.x != 0.0f || Params.m_RenderOrigin.y != 0.0f)
-	{
-		const float Cx = Params.m_Center.x - Params.m_RenderOrigin.x;
-		const float Cy = Params.m_Center.y - Params.m_RenderOrigin.y;
-		if(std::isfinite(Cx) && std::isfinite(Cy))
-			return vec2(Cx, Cy);
-		return vec2(0.0f, 0.0f);
-	}
-	return Params.m_Center;
-}
-
 bool CRenderLayerGroup::DoRender(const CRenderLayerParams &Params)
 {
 	if(!g_Config.m_GfxNoclip || Params.m_RenderType == ERenderType::RENDERTYPE_FULL_DESIGN)
@@ -249,10 +234,6 @@ bool CRenderLayerGroup::DoRender(const CRenderLayerParams &Params)
 		Graphics()->ClipDisable();
 		if(m_pGroup->m_Version >= 2 && m_pGroup->m_UseClipping)
 		{
-			// Far lands: skip group clips (absolute clip rects are meaningless off-map)
-			if(Params.m_FarLands)
-				return true;
-
 			// set clipping
 			Graphics()->MapScreenToInterface(Params.m_Center.x, Params.m_Center.y, Params.m_Zoom);
 
@@ -293,15 +274,9 @@ void CRenderLayerGroup::Render(const CRenderLayerParams &Params)
 {
 	int ParallaxZoom = std::clamp(std::max(m_pGroup->m_ParallaxX, m_pGroup->m_ParallaxY), 0, 100);
 	float aPoints[4];
-	const vec2 Center = EffectiveRenderCenter(Params);
-	// Far lands: ignore parallax/offset so edge fill stays locked to camera-local space
-	const float ParX = Params.m_FarLands ? 100.0f : m_pGroup->m_ParallaxX;
-	const float ParY = Params.m_FarLands ? 100.0f : m_pGroup->m_ParallaxY;
-	const float OffX = Params.m_FarLands ? 0.0f : m_pGroup->m_OffsetX;
-	const float OffY = Params.m_FarLands ? 0.0f : m_pGroup->m_OffsetY;
-	const float ParZoom = Params.m_FarLands ? 100.0f : (float)ParallaxZoom;
-	Graphics()->MapScreenToWorld(Center.x, Center.y, ParX, ParY, ParZoom,
-		OffX, OffY, Graphics()->ScreenAspect(), Params.m_Zoom, aPoints);
+	// Vanilla hard draw: absolute camera center, full parallax/offset — no far-lands remapping.
+	Graphics()->MapScreenToWorld(Params.m_Center.x, Params.m_Center.y, m_pGroup->m_ParallaxX, m_pGroup->m_ParallaxY, (float)ParallaxZoom,
+		m_pGroup->m_OffsetX, m_pGroup->m_OffsetY, Graphics()->ScreenAspect(), Params.m_Zoom, aPoints);
 	Graphics()->MapScreen(aPoints[0], aPoints[1], aPoints[2], aPoints[3]);
 }
 
@@ -407,8 +382,17 @@ void CRenderLayerTile::RenderTileBorder(const ColorRGBA &Color, int BorderX0, in
 	int Y1 = std::min((int)Visuals.m_Height, BorderY1);
 	int X1 = std::min((int)Visuals.m_Width, BorderX1);
 
-	// corners — no scale clamp (force-render at extreme coords / zoom)
+	// Cap border scale so extreme zoom-out cannot emit multi-thousand-tile scales
+	constexpr float MaxBorderScale = 64.0f;
+	auto ClampBorderScale = [](vec2 Scale) {
+		Scale.x = std::min(std::abs(Scale.x), MaxBorderScale) * (Scale.x < 0 ? -1.0f : 1.0f);
+		Scale.y = std::min(std::abs(Scale.y), MaxBorderScale) * (Scale.y < 0 ? -1.0f : 1.0f);
+		return Scale;
+	};
+
+	// corners
 	auto DrawCorner = [&](vec2 Offset, vec2 Scale, CTileLayerVisuals::CTileVisual &Visual) {
+		Scale = ClampBorderScale(Scale);
 		Offset *= 32.0f;
 		Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color, (offset_ptr_size)Visual.IndexBufferByteOffset(), Offset, Scale, 1);
 	};
@@ -450,8 +434,9 @@ void CRenderLayerTile::RenderTileBorder(const ColorRGBA &Color, int BorderX0, in
 		}
 	}
 
-	// borders — no scale clamp (force-render)
+	// borders
 	auto DrawBorder = [&](vec2 Offset, vec2 Scale, CTileLayerVisuals::CTileVisual &StartVisual, CTileLayerVisuals::CTileVisual &EndVisual) {
+		Scale = ClampBorderScale(Scale);
 		unsigned int DrawNum = ((EndVisual.IndexBufferByteOffset() - StartVisual.IndexBufferByteOffset()) / (sizeof(unsigned int) * 6)) + (EndVisual.DoDraw() ? 1lu : 0lu);
 		offset_ptr_size pOffset = (offset_ptr_size)StartVisual.IndexBufferByteOffset();
 		Offset *= 32.0f;
@@ -499,166 +484,83 @@ void CRenderLayerTile::RenderTileBorder(const ColorRGBA &Color, int BorderX0, in
 	}
 }
 
-void CRenderLayerTile::RenderFarLandsEdgeFill(const ColorRGBA &Color, const CRenderLayerParams &Params)
+void CRenderLayerTile::RenderKillTileBorder(const ColorRGBA &Color)
 {
-	if(!m_pTiles || !m_pLayerTilemap)
+	if(!m_VisualTiles.has_value())
 		return;
-	const int w = m_pLayerTilemap->m_Width;
-	const int h = m_pLayerTilemap->m_Height;
-	if(w <= 0 || h <= 0)
-		return;
+	CTileLayerVisuals &Visuals = m_VisualTiles.value();
+	if(Visuals.m_BufferContainerIndex == -1)
+		return; // no visuals were created
 
 	float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
 	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
-	if(!std::isfinite(ScreenX0) || !std::isfinite(ScreenY0) || !std::isfinite(ScreenX1) || !std::isfinite(ScreenY1) ||
-		ScreenX1 <= ScreenX0 || ScreenY1 <= ScreenY0)
-	{
-		// Ensure a finite camera-local view
-		float aPoints[4];
-		Graphics()->MapScreenToWorld(0.0f, 0.0f, 100.0f, 100.0f, 100.0f, 0.0f, 0.0f, Graphics()->ScreenAspect(), Params.m_Zoom, aPoints);
-		Graphics()->MapScreen(aPoints[0], aPoints[1], aPoints[2], aPoints[3]);
-		Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
-		if(!std::isfinite(ScreenX0) || ScreenX1 <= ScreenX0)
+
+	// Guard against invalid / infinite screen (bad zoom or center)
+	if(!std::isfinite(ScreenX0) || !std::isfinite(ScreenY0) || !std::isfinite(ScreenX1) || !std::isfinite(ScreenY1))
+		return;
+	if(ScreenX1 <= ScreenX0 || ScreenY1 <= ScreenY0)
+		return;
+
+	int BorderY0 = std::floor(ScreenY0 / 32);
+	int BorderX0 = std::floor(ScreenX0 / 32);
+	int BorderY1 = std::ceil(ScreenY1 / 32);
+	int BorderX1 = std::ceil(ScreenX1 / 32);
+
+	if(BorderX0 >= -BorderRenderDistance && BorderY0 >= -BorderRenderDistance && BorderX1 <= (int)Visuals.m_Width + BorderRenderDistance && BorderY1 <= (int)Visuals.m_Height + BorderRenderDistance)
+		return;
+	if(!Visuals.m_BorderKillTile.DoDraw())
+		return;
+
+	// Keep border geometry close to the map (original intent: ~300 tiles margin).
+	const int Margin = BorderRenderDistance + 32;
+	BorderX0 = std::clamp(BorderX0, -Margin, (int)Visuals.m_Width + Margin - 1);
+	BorderY0 = std::clamp(BorderY0, -Margin, (int)Visuals.m_Height + Margin - 1);
+	BorderX1 = std::clamp(BorderX1, -Margin + 1, (int)Visuals.m_Width + Margin);
+	BorderY1 = std::clamp(BorderY1, -Margin + 1, (int)Visuals.m_Height + Margin);
+
+	constexpr float MaxScale = 64.0f;
+	auto ClampScale = [](vec2 Scale) {
+		Scale.x = std::clamp(Scale.x, 0.0f, MaxScale);
+		Scale.y = std::clamp(Scale.y, 0.0f, MaxScale);
+		return Scale;
+	};
+
+	auto DrawKillBorder = [&](vec2 Offset, vec2 Scale) {
+		Scale = ClampScale(Scale);
+		if(Scale.x <= 0.0f || Scale.y <= 0.0f)
 			return;
+		offset_ptr_size pOffset = (offset_ptr_size)Visuals.m_BorderKillTile.IndexBufferByteOffset();
+		Offset *= 32.0f;
+		Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color, pOffset, Offset, Scale, 1);
+	};
+
+	// Draw left kill tile border
+	if(BorderX0 < -BorderRenderDistance)
+	{
+		DrawKillBorder(
+			vec2(BorderX0, BorderY0),
+			vec2(-BorderRenderDistance - BorderX0, BorderY1 - BorderY0));
 	}
-
-	const float Scale = 32.0f;
-	int StartX = (int)std::floor(ScreenX0 / Scale) - 1;
-	int StartY = (int)std::floor(ScreenY0 / Scale) - 1;
-	int EndX = (int)std::ceil(ScreenX1 / Scale) + 1;
-	int EndY = (int)std::ceil(ScreenY1 / Scale) + 1;
-
-	// Cap draw cost (viewport is already small in relative space)
-	constexpr int MaxSpan = 96;
-	if(EndX - StartX > MaxSpan)
+	// Draw top kill tile border
+	if(BorderY0 < -BorderRenderDistance)
 	{
-		const int Mid = (StartX + EndX) / 2;
-		StartX = Mid - MaxSpan / 2;
-		EndX = Mid + MaxSpan / 2;
+		DrawKillBorder(
+			vec2(std::max(BorderX0, -BorderRenderDistance), BorderY0),
+			vec2(std::min(BorderX1, (int)Visuals.m_Width + BorderRenderDistance) - std::max(BorderX0, -BorderRenderDistance), -BorderRenderDistance - BorderY0));
 	}
-	if(EndY - StartY > MaxSpan)
+	// Draw right kill tile border
+	if(BorderX1 > (int)Visuals.m_Width + BorderRenderDistance)
 	{
-		const int Mid = (StartY + EndY) / 2;
-		StartY = Mid - MaxSpan / 2;
-		EndY = Mid + MaxSpan / 2;
+		DrawKillBorder(
+			vec2(Visuals.m_Width + BorderRenderDistance, BorderY0),
+			vec2(BorderX1 - (Visuals.m_Width + BorderRenderDistance), BorderY1 - BorderY0));
 	}
-
-	// Absolute world phase: MapScreen is (world_px - origin_px).
-	// Local tile index tx is at absolute world tile OriginTileX + tx.
-	double BaseWorldTX = Params.m_OriginTileX;
-	double BaseWorldTY = Params.m_OriginTileY;
-	if(!std::isfinite(BaseWorldTX))
-		BaseWorldTX = std::isfinite(Params.m_CamTileX) ? Params.m_CamTileX : ((Params.m_Center.x < 0.0f) ? -1.0e9 : (double)w + 1.0e9);
-	if(!std::isfinite(BaseWorldTY))
-		BaseWorldTY = std::isfinite(Params.m_CamTileY) ? Params.m_CamTileY : ((Params.m_Center.y < 0.0f) ? -1.0e9 : (double)h + 1.0e9);
-
-	Graphics()->BlendNone();
-	RenderMap()->RenderTilemapEdgeFill(m_pTiles, w, h, Scale, Color,
-		LAYERRENDERFLAG_OPAQUE, StartX, StartY, EndX, EndY, BaseWorldTX, BaseWorldTY);
-	Graphics()->BlendNormal();
-	RenderMap()->RenderTilemapEdgeFill(m_pTiles, w, h, Scale, Color,
-		LAYERRENDERFLAG_TRANSPARENT, StartX, StartY, EndX, EndY, BaseWorldTX, BaseWorldTY);
-}
-
-void CRenderLayerTile::RenderKillTileBorder(const ColorRGBA &Color, const CRenderLayerParams &Params)
-{
-	const int MapW = m_pLayerTilemap ? m_pLayerTilemap->m_Width : 0;
-	const int MapH = m_pLayerTilemap ? m_pLayerTilemap->m_Height : 0;
-	if(MapW <= 0 || MapH <= 0)
-		return;
-
-	// Kill band is only outside the map expanded by BorderRenderDistance tiles.
-	// Never paint the whole playable map with blinking death wash.
-	const double SafeMin = (double)(-BorderRenderDistance);
-	const double SafeMaxX = (double)(MapW + BorderRenderDistance);
-	const double SafeMaxY = (double)(MapH + BorderRenderDistance);
-	const bool CamInKillZone = std::isfinite(Params.m_CamTileX) && std::isfinite(Params.m_CamTileY) &&
-				   (Params.m_CamTileX < SafeMin || Params.m_CamTileX >= SafeMaxX ||
-					   Params.m_CamTileY < SafeMin || Params.m_CamTileY >= SafeMaxY);
-
-	// On-map / near-map vanilla path: only extend death where the *screen* leaves the safe rect.
-	// Do not use CamTile fallthrough (wrong CamTile used to white-out the whole map).
-	if(!Params.m_FarLands)
+	// Draw bottom kill tile border
+	if(BorderY1 > (int)Visuals.m_Height + BorderRenderDistance)
 	{
-		if(!m_VisualTiles.has_value())
-			return;
-		CTileLayerVisuals &Visuals = m_VisualTiles.value();
-		if(Visuals.m_BufferContainerIndex == -1 || !Visuals.m_BorderKillTile.DoDraw())
-			return;
-
-		float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
-		Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
-		if(!std::isfinite(ScreenX0) || ScreenX1 <= ScreenX0)
-			return;
-
-		const int BorderX0 = (int)std::floor(ScreenX0 / 32.0f);
-		const int BorderY0 = (int)std::floor(ScreenY0 / 32.0f);
-		const int BorderX1 = (int)std::ceil(ScreenX1 / 32.0f);
-		const int BorderY1 = (int)std::ceil(ScreenY1 / 32.0f);
-		const int SafeMinX = -BorderRenderDistance;
-		const int SafeMinY = -BorderRenderDistance;
-		const int SafeMaxXi = MapW + BorderRenderDistance;
-		const int SafeMaxYi = MapH + BorderRenderDistance;
-		if(BorderX0 >= SafeMinX && BorderY0 >= SafeMinY && BorderX1 <= SafeMaxXi && BorderY1 <= SafeMaxYi)
-			return;
-
-		auto DrawKill = [&](vec2 OffsetPx, vec2 ScaleTiles) {
-			ScaleTiles.x = std::clamp(ScaleTiles.x, 0.0f, 128.0f);
-			ScaleTiles.y = std::clamp(ScaleTiles.y, 0.0f, 128.0f);
-			if(ScaleTiles.x <= 0.0f || ScaleTiles.y <= 0.0f)
-				return;
-			offset_ptr_size pOffset = (offset_ptr_size)Visuals.m_BorderKillTile.IndexBufferByteOffset();
-			Graphics()->RenderBorderTiles(Visuals.m_BufferContainerIndex, Color, pOffset, OffsetPx, ScaleTiles, 1);
-		};
-		auto DrawBand = [&](int X0, int Y0, int X1, int Y1) {
-			if(X1 <= X0 || Y1 <= Y0)
-				return;
-			DrawKill(vec2((float)X0 * 32.0f, (float)Y0 * 32.0f), vec2((float)std::min(X1 - X0, 128), (float)std::min(Y1 - Y0, 128)));
-		};
-		if(BorderX0 < SafeMinX)
-			DrawBand(BorderX0, BorderY0, SafeMinX, BorderY1);
-		if(BorderX1 > SafeMaxXi)
-			DrawBand(SafeMaxXi, BorderY0, BorderX1, BorderY1);
-		if(BorderY0 < SafeMinY)
-			DrawBand(std::max(BorderX0, SafeMinX), BorderY0, std::min(BorderX1, SafeMaxXi), SafeMinY);
-		if(BorderY1 > SafeMaxYi)
-			DrawBand(std::max(BorderX0, SafeMinX), SafeMaxYi, std::min(BorderX1, SafeMaxXi), BorderY1);
-		return;
-	}
-
-	// Far lands: only draw kill when camera is outside the kill-safe band.
-	// Between map edge and kill border, edge-clamped *map textures* are enough.
-	if(!CamInKillZone)
-		return;
-
-	// Tile death entity texture across the camera-local viewport (no solid white wash).
-	if(!m_VisualTiles.has_value() || !m_VisualTiles->m_BorderKillTile.DoDraw() || m_VisualTiles->m_BufferContainerIndex == -1)
-		return;
-
-	float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
-	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
-	if(!std::isfinite(ScreenX0) || ScreenX1 <= ScreenX0)
-		return;
-
-	// Repeat kill tiles (not one stretched white quad) so texture is visible
-	const int StartX = (int)std::floor(ScreenX0 / 32.0f) - 1;
-	const int StartY = (int)std::floor(ScreenY0 / 32.0f) - 1;
-	const int EndX = (int)std::ceil(ScreenX1 / 32.0f) + 1;
-	const int EndY = (int)std::ceil(ScreenY1 / 32.0f) + 1;
-	constexpr int Chunk = 8;
-	constexpr int MaxCells = 64;
-	int Cells = 0;
-	offset_ptr_size pOffset = (offset_ptr_size)m_VisualTiles->m_BorderKillTile.IndexBufferByteOffset();
-	for(int ty = StartY; ty < EndY && Cells < MaxCells; ty += Chunk)
-	{
-		for(int tx = StartX; tx < EndX && Cells < MaxCells; tx += Chunk)
-		{
-			const int cw = std::min(Chunk, EndX - tx);
-			const int ch = std::min(Chunk, EndY - ty);
-			Graphics()->RenderBorderTiles(m_VisualTiles->m_BufferContainerIndex, Color, pOffset,
-				vec2((float)tx * 32.0f, (float)ty * 32.0f), vec2((float)cw, (float)ch), 1);
-			Cells++;
-		}
+		DrawKillBorder(
+			vec2(std::max(BorderX0, -BorderRenderDistance), Visuals.m_Height + BorderRenderDistance),
+			vec2(std::min(BorderX1, (int)Visuals.m_Width + BorderRenderDistance) - std::max(BorderX0, -BorderRenderDistance), BorderY1 - (Visuals.m_Height + BorderRenderDistance)));
 	}
 }
 
@@ -714,22 +616,11 @@ bool CRenderLayerTile::DoRender(const CRenderLayerParams &Params)
 
 void CRenderLayerTile::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	// Far lands: GPU tile buffer is in absolute map coords; fill viewport with edge tiles instead.
-	if(Params.m_FarLands && Params.m_RenderTileBorder)
-	{
-		RenderFarLandsEdgeFill(Color, Params);
-		return;
-	}
 	RenderTileLayer(Color, Params);
 }
 
 void CRenderLayerTile::RenderTileLayerNoTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	if(Params.m_FarLands && Params.m_RenderTileBorder)
-	{
-		RenderFarLandsEdgeFill(Color, Params);
-		return;
-	}
 	Graphics()->BlendNone();
 	RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, (Params.m_RenderTileBorder ? TILERENDERFLAG_EXTEND : 0) | LAYERRENDERFLAG_OPAQUE);
 	Graphics()->BlendNormal();
@@ -1640,44 +1531,15 @@ void CRenderLayerEntityGame::Init()
 	UploadTileData(m_VisualTiles, 0, false, true);
 }
 
-bool CRenderLayerEntityGame::DoRender(const CRenderLayerParams &Params)
-{
-	// Always allow game layer so kill-border / far-void can force-render even when
-	// cl_overlay_entities is 0 (vanilla EntityBase would skip the whole layer).
-	if(Params.m_RenderType == ERenderType::RENDERTYPE_BACKGROUND_FORCE || Params.m_RenderType == ERenderType::RENDERTYPE_FULL_DESIGN)
-		return false;
-	return true;
-}
-
 void CRenderLayerEntityGame::RenderTileLayerWithTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	// Kill only outside the kill-safe band (RenderKillTileBorder decides).
 	if(Params.m_RenderTileBorder)
-		RenderKillTileBorder(GetDeathBorderColor(), Params);
-	// Game entity markers only when overlay is on — far lands use map tile layers for textures.
-	if(Params.m_EntityOverlayVal)
-	{
-		if(Params.m_FarLands)
-			RenderFarLandsEdgeFill(Color, Params);
-		else
-			RenderTileLayer(Color, Params);
-	}
+		RenderKillTileBorder(Color.Multiply(GetDeathBorderColor()));
+	RenderTileLayer(Color, Params);
 }
 
 void CRenderLayerEntityGame::RenderTileLayerNoTileBuffer(const ColorRGBA &Color, const CRenderLayerParams &Params)
 {
-	if(Params.m_RenderTileBorder)
-		RenderKillTileBorder(GetDeathBorderColor(), Params);
-
-	if(!Params.m_EntityOverlayVal)
-		return;
-
-	if(Params.m_FarLands)
-	{
-		RenderFarLandsEdgeFill(Color, Params);
-		return;
-	}
-
 	Graphics()->BlendNone();
 	RenderMap()->RenderTilemap(m_pTiles, m_pLayerTilemap->m_Width, m_pLayerTilemap->m_Height, 32.0f, Color, (Params.m_RenderTileBorder ? TILERENDERFLAG_EXTEND : 0) | LAYERRENDERFLAG_OPAQUE);
 	Graphics()->BlendNormal();
@@ -1694,7 +1556,8 @@ void CRenderLayerEntityGame::RenderTileLayerNoTileBuffer(const ColorRGBA &Color,
 
 ColorRGBA CRenderLayerEntityGame::GetDeathBorderColor() const
 {
-	// Vanilla-ish blink: white modulates the death *texture* (not a solid wash).
+	// draw kill tiles outside the entity clipping rectangle
+	// slow blinking to hint that it's not a part of the map
 	float Seconds = time_get() / (float)time_freq();
 	float Alpha = 0.3f + 0.35f * (1.f + std::sin(2.f * pi * Seconds / 3.f));
 	return ColorRGBA(1.f, 1.f, 1.f, Alpha);
