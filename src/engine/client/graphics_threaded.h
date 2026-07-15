@@ -172,7 +172,7 @@ public:
 	};
 
 	typedef vec2 SPoint;
-	typedef vec2 STexCoord;
+	typedef GL_STexCoord STexCoord;
 	typedef GL_SColorf SColorf;
 	typedef GL_SColor SColor;
 	typedef GL_SVertex SVertex;

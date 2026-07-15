@@ -80,7 +80,21 @@ public:
 };
 
 typedef vec2 GL_SPoint;
-typedef vec2 GL_STexCoord;
+
+struct GL_STexCoord
+{
+	float u, v;
+
+	GL_STexCoord() = default;
+	GL_STexCoord(float U, float V) :
+		u(U), v(V)
+	{
+	}
+	GL_STexCoord(vec2 P) :
+		u(P.x), v(P.y)
+	{
+	}
+};
 
 struct GL_STexCoord3D
 {
@@ -93,9 +107,9 @@ struct GL_STexCoord3D
 
 	GL_STexCoord3D &operator=(const vec3 &TexCoord)
 	{
-		u = TexCoord.u;
-		v = TexCoord.v;
-		w = TexCoord.w;
+		u = TexCoord.x;
+		v = TexCoord.y;
+		w = TexCoord.z;
 		return *this;
 	}
 
