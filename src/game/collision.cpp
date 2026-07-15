@@ -341,31 +341,22 @@ int CCollision::GetTilePixels(int64_t Px, int64_t Py) const
 	if(!m_pTiles || m_Width <= 0 || m_Height <= 0)
 		return 0;
 
-	const int64_t MapWpx = (int64_t)m_Width * 32;
-	const int64_t MapHpx = (int64_t)m_Height * 32;
-	// Kill-border band matches BorderRenderDistance (~201 tiles outside the map).
-	constexpr int64_t BorderBandPx = 201LL * 32;
+	// Vanilla infinite-extending border tiles:
+	// tile index is clamped to the map edge. Outside the map you collide with
+	// whatever is on the perimeter (solid wall stays solid, air stays air).
+	// Use int64 so far coords clamp to the edge instead of wrapping via int32.
+	int64_t Nx = Px / 32;
+	int64_t Ny = Py / 32;
+	if(Nx < 0)
+		Nx = 0;
+	else if(Nx >= m_Width)
+		Nx = m_Width - 1;
+	if(Ny < 0)
+		Ny = 0;
+	else if(Ny >= m_Height)
+		Ny = m_Height - 1;
 
-	const bool OutsideMap = Px < 0 || Py < 0 || Px >= MapWpx || Py >= MapHpx;
-	if(OutsideMap)
-	{
-		const bool InKillBand =
-			Px >= -BorderBandPx && Py >= -BorderBandPx &&
-			Px < MapWpx + BorderBandPx && Py < MapHpx + BorderBandPx;
-		if(InKillBand)
-		{
-			// Kill border exterior: death tile (solid via CheckPoint) so you don't fall through
-			return TILE_DEATH;
-		}
-		// Beyond kill border (far lands): infinite solid floor you can stand on
-		return TILE_SOLID;
-	}
-
-	// Inside the real map — only real tiles (no clamp into edge from outside)
-	const int Nx = (int)(Px / 32);
-	const int Ny = (int)(Py / 32);
-	const int Index = Ny * m_Width + Nx;
-
+	const int Index = (int)Ny * m_Width + (int)Nx;
 	if(m_pTiles[Index].m_Index >= TILE_SOLID && m_pTiles[Index].m_Index <= TILE_NOLASER)
 		return m_pTiles[Index].m_Index;
 	return 0;
@@ -378,20 +369,9 @@ int CCollision::GetTile(int x, int y) const
 
 bool CCollision::CheckPoint(wcoord x, wcoord y) const
 {
-	const int64_t Px = x.round_to_int64();
-	const int64_t Py = y.round_to_int64();
-	const int Index = GetTilePixels(Px, Py);
-	if(Index == TILE_SOLID || Index == TILE_NOHOOK)
-		return true;
-	// Outside-map TILE_DEATH is a solid kill platform (vanilla death is non-solid air kill)
-	if(Index == TILE_DEATH)
-	{
-		const int64_t MapWpx = (int64_t)m_Width * 32;
-		const int64_t MapHpx = (int64_t)m_Height * 32;
-		if(Px < 0 || Py < 0 || Px >= MapWpx || Py >= MapHpx)
-			return true;
-	}
-	return false;
+	// Same solid rules as vanilla (no "all outside air is solid")
+	const int Index = GetTilePixels(x.round_to_int64(), y.round_to_int64());
+	return Index == TILE_SOLID || Index == TILE_NOHOOK;
 }
 
 int CCollision::GetCollisionAt(wcoord x, wcoord y) const
