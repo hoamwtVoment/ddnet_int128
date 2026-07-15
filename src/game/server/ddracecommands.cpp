@@ -542,23 +542,23 @@ void CGameContext::ConHoTp(IConsole::IResult *pResult, void *pUserData)
 	wvec2 Pos;
 	if(pResult->NumArguments() >= 2)
 	{
-		// Parse as double so large tile coords stay accurate (float only has ~7 digits).
-		char *pEndX = nullptr;
-		char *pEndY = nullptr;
+		// Full i128 integer tile coords (double/int64 overflowed huge values to 0).
 		const char *pXStr = pResult->GetString(0);
 		const char *pYStr = pResult->GetString(1);
-		const double TileX = strtod(pXStr, &pEndX);
-		const double TileY = strtod(pYStr, &pEndY);
-		if(pEndX == pXStr || pEndY == pYStr || *pEndX != '\0' || *pEndY != '\0' ||
-			!std::isfinite(TileX) || !std::isfinite(TileY))
+		i128 TileX = I128(0);
+		i128 TileY = I128(0);
+		if(!i128_from_decimal_str(pXStr, &TileX) || !i128_from_decimal_str(pYStr, &TileY))
 		{
 			pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", "invalid tile coordinate");
 			return;
 		}
-		// Tile center in pixels as int64 — avoid float Tile*32 which overflows/wraps.
-		const int64_t PixelX = static_cast<int64_t>(std::llround(TileX * static_cast<double>(WORLD_TILE_SIZE)));
-		const int64_t PixelY = static_cast<int64_t>(std::llround(TileY * static_cast<double>(WORLD_TILE_SIZE)));
-		Pos = wvec2(wcoord(PixelX), wcoord(PixelY));
+		wcoord WorldX, WorldY;
+		if(!TileI128ToWorld(TileX, &WorldX) || !TileI128ToWorld(TileY, &WorldY))
+		{
+			pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", "tile coordinate too large for world fixed-point");
+			return;
+		}
+		Pos = wvec2(WorldX, WorldY);
 	}
 	else if(pPlayer)
 	{
@@ -589,8 +589,11 @@ void CGameContext::ConHoTp(IConsole::IResult *pResult, void *pUserData)
 		pChr->m_PrevPos = Pos;
 	}
 
-	char aBuf[128];
-	str_format(aBuf, sizeof(aBuf), "teleported client %d to tile %.2f %.2f%s", ClientId, Pos.x.to_double() / 32.0, Pos.y.to_double() / 32.0, ResetRace ? " and reset race" : "");
+	char aTileX[64], aTileY[64], aBuf[192];
+	// Log full integer tile indices (double loses big integers)
+	i128_to_decimal_str(Pos.x.to_i128_pixels() / I128(WORLD_TILE_SIZE), aTileX, sizeof(aTileX));
+	i128_to_decimal_str(Pos.y.to_i128_pixels() / I128(WORLD_TILE_SIZE), aTileY, sizeof(aTileY));
+	str_format(aBuf, sizeof(aBuf), "teleported client %d to tile %s %s%s", ClientId, aTileX, aTileY, ResetRace ? " and reset race" : "");
 	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "ho_tp", aBuf);
 }
 

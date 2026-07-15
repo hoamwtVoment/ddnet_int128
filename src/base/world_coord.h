@@ -55,7 +55,13 @@ public:
 
 	static constexpr wcoord FromRaw(i128 Raw) { return wcoord(Raw, true); }
 
+	// Integer pixels as i128 (ho_tp / far lands — not limited to int64)
+	static constexpr wcoord FromIntegerPixels(i128 Pixels) { return FromRaw(Pixels << FRAC_BITS); }
+
 	constexpr i128 Raw() const { return raw; }
+
+	// Integer pixel part as full i128 (not truncated to int64)
+	i128 to_i128_pixels() const { return raw >> FRAC_BITS; }
 
 	explicit operator bool() const { return raw != I128(0); }
 	// Implicit conversions for tile indices / legacy int pixel APIs
@@ -228,6 +234,24 @@ inline int WorldToTile(wcoord World)
 inline wcoord TileToWorld(int Tile)
 {
 	return wcoord(static_cast<int64_t>(Tile) * WORLD_TILE_SIZE);
+}
+
+// Tile index as i128 → world pixels (tile * 32). Returns false if pixel or fixed-point overflows i128.
+inline bool TileI128ToWorld(i128 Tile, wcoord *pOut)
+{
+	if(!pOut)
+		return false;
+	const i128 Scale = I128(WORLD_TILE_SIZE);
+	const i128 Pixels = Tile * Scale;
+	// Detect multiply overflow: Pixels / 32 must equal Tile
+	if(Scale != I128(0) && Pixels / Scale != Tile)
+		return false;
+	// Detect fixed-point shift overflow
+	const i128 Raw = Pixels << wcoord::FRAC_BITS;
+	if((Raw >> wcoord::FRAC_BITS) != Pixels)
+		return false;
+	*pOut = wcoord::FromIntegerPixels(Pixels);
+	return true;
 }
 
 inline wcoord TileCenterToWorld(int Tile)

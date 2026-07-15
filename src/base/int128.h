@@ -336,4 +336,85 @@ inline i128 i128_from_double(double v)
 
 #endif // soft i128
 
+// --- decimal string helpers (native + soft) ---
+
+// Parse optional sign + digits (integer only). Returns false on empty/invalid/overflow-ish junk.
+inline bool i128_from_decimal_str(const char *pStr, i128 *pOut)
+{
+	if(!pStr || !pOut)
+		return false;
+	while(*pStr == ' ' || *pStr == '\t')
+		pStr++;
+	bool Neg = false;
+	if(*pStr == '-')
+	{
+		Neg = true;
+		pStr++;
+	}
+	else if(*pStr == '+')
+		pStr++;
+	if(*pStr < '0' || *pStr > '9')
+		return false;
+
+	i128 V = I128(0);
+	const i128 Ten = I128(10);
+	bool Any = false;
+	while(*pStr >= '0' && *pStr <= '9')
+	{
+		Any = true;
+		// V = V * 10 + digit (reject if string is absurdly long — still limited by i128 range in practice)
+		V = V * Ten + I128(*pStr - '0');
+		pStr++;
+	}
+	// optional fractional part for convenience: ignore after '.'
+	if(*pStr == '.')
+	{
+		pStr++;
+		while(*pStr >= '0' && *pStr <= '9')
+			pStr++;
+	}
+	while(*pStr == ' ' || *pStr == '\t')
+		pStr++;
+	if(!Any || *pStr != '\0')
+		return false;
+	*pOut = Neg ? -V : V;
+	return true;
+}
+
+// Write signed decimal into pBuf (always NUL-terminated if BufSize > 0).
+inline void i128_to_decimal_str(i128 V, char *pBuf, size_t BufSize)
+{
+	if(!pBuf || BufSize == 0)
+		return;
+	if(BufSize == 1)
+	{
+		pBuf[0] = '\0';
+		return;
+	}
+	if(V == I128(0))
+	{
+		pBuf[0] = '0';
+		pBuf[1] = '\0';
+		return;
+	}
+	bool Neg = V < I128(0);
+	if(Neg)
+		V = -V;
+	char aTmp[64];
+	int N = 0;
+	const i128 Ten = I128(10);
+	while(V > I128(0) && N < 63)
+	{
+		const i128 Dig = V % Ten;
+		aTmp[N++] = static_cast<char>('0' + static_cast<int>(i128_to_int64(Dig)));
+		V = V / Ten;
+	}
+	size_t Out = 0;
+	if(Neg && Out + 1 < BufSize)
+		pBuf[Out++] = '-';
+	while(N > 0 && Out + 1 < BufSize)
+		pBuf[Out++] = aTmp[--N];
+	pBuf[Out] = '\0';
+}
+
 #endif // BASE_INT128_H
