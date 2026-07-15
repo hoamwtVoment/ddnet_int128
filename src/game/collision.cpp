@@ -343,31 +343,27 @@ int CCollision::GetTilePixels(int64_t Px, int64_t Py) const
 
 	const int64_t MapWpx = (int64_t)m_Width * 32;
 	const int64_t MapHpx = (int64_t)m_Height * 32;
-	// Kill-border visual band (~BorderRenderDistance tiles). Inside this band, keep
-	// vanilla clamp-to-edge so perimeter walls still collide. Beyond it = far void.
+	// Kill-border band matches BorderRenderDistance (~201 tiles outside the map).
 	constexpr int64_t BorderBandPx = 201LL * 32;
 
-	if(Px < -BorderBandPx || Py < -BorderBandPx ||
-		Px >= MapWpx + BorderBandPx || Py >= MapHpx + BorderBandPx)
+	const bool OutsideMap = Px < 0 || Py < 0 || Px >= MapWpx || Py >= MapHpx;
+	if(OutsideMap)
 	{
-		// Far lands / deep void: no phantom map collision (int32 wrap used to pull you in)
-		return 0;
+		const bool InKillBand =
+			Px >= -BorderBandPx && Py >= -BorderBandPx &&
+			Px < MapWpx + BorderBandPx && Py < MapHpx + BorderBandPx;
+		if(InKillBand)
+		{
+			// Kill border exterior: death tile (solid via CheckPoint) so you don't fall through
+			return TILE_DEATH;
+		}
+		// Beyond kill border (far lands): infinite solid floor you can stand on
+		return TILE_SOLID;
 	}
 
-	// Near / on the map: clamp like vanilla GetTile so edge solid/death still work
-	int64_t Cx = Px;
-	int64_t Cy = Py;
-	if(Cx < 0)
-		Cx = 0;
-	else if(Cx >= MapWpx)
-		Cx = MapWpx - 1;
-	if(Cy < 0)
-		Cy = 0;
-	else if(Cy >= MapHpx)
-		Cy = MapHpx - 1;
-
-	const int Nx = (int)(Cx / 32);
-	const int Ny = (int)(Cy / 32);
+	// Inside the real map — only real tiles (no clamp into edge from outside)
+	const int Nx = (int)(Px / 32);
+	const int Ny = (int)(Py / 32);
 	const int Index = Ny * m_Width + Nx;
 
 	if(m_pTiles[Index].m_Index >= TILE_SOLID && m_pTiles[Index].m_Index <= TILE_NOLASER)
@@ -377,14 +373,25 @@ int CCollision::GetTilePixels(int64_t Px, int64_t Py) const
 
 int CCollision::GetTile(int x, int y) const
 {
-	// int pixel path: still go through GetTilePixels so near-border clamp is consistent
 	return GetTilePixels((int64_t)x, (int64_t)y);
 }
 
 bool CCollision::CheckPoint(wcoord x, wcoord y) const
 {
-	const int Index = GetTilePixels(x.round_to_int64(), y.round_to_int64());
-	return Index == TILE_SOLID || Index == TILE_NOHOOK;
+	const int64_t Px = x.round_to_int64();
+	const int64_t Py = y.round_to_int64();
+	const int Index = GetTilePixels(Px, Py);
+	if(Index == TILE_SOLID || Index == TILE_NOHOOK)
+		return true;
+	// Outside-map TILE_DEATH is a solid kill platform (vanilla death is non-solid air kill)
+	if(Index == TILE_DEATH)
+	{
+		const int64_t MapWpx = (int64_t)m_Width * 32;
+		const int64_t MapHpx = (int64_t)m_Height * 32;
+		if(Px < 0 || Py < 0 || Px >= MapWpx || Py >= MapHpx)
+			return true;
+	}
+	return false;
 }
 
 int CCollision::GetCollisionAt(wcoord x, wcoord y) const
