@@ -338,16 +338,36 @@ int CCollision::GetMoveRestrictions(CALLBACK_SWITCHACTIVE pfnSwitchActive, void 
 
 int CCollision::GetTilePixels(int64_t Px, int64_t Py) const
 {
-	if(!m_pTiles)
+	if(!m_pTiles || m_Width <= 0 || m_Height <= 0)
 		return 0;
 
-	// Outside the real map = empty void. Do NOT clamp into the map (int32 wrap used to
-	// teleport collision into map tiles at far-lands coordinates).
-	if(Px < 0 || Py < 0 || Px >= (int64_t)m_Width * 32 || Py >= (int64_t)m_Height * 32)
-		return 0;
+	const int64_t MapWpx = (int64_t)m_Width * 32;
+	const int64_t MapHpx = (int64_t)m_Height * 32;
+	// Kill-border visual band (~BorderRenderDistance tiles). Inside this band, keep
+	// vanilla clamp-to-edge so perimeter walls still collide. Beyond it = far void.
+	constexpr int64_t BorderBandPx = 201LL * 32;
 
-	const int Nx = (int)(Px / 32);
-	const int Ny = (int)(Py / 32);
+	if(Px < -BorderBandPx || Py < -BorderBandPx ||
+		Px >= MapWpx + BorderBandPx || Py >= MapHpx + BorderBandPx)
+	{
+		// Far lands / deep void: no phantom map collision (int32 wrap used to pull you in)
+		return 0;
+	}
+
+	// Near / on the map: clamp like vanilla GetTile so edge solid/death still work
+	int64_t Cx = Px;
+	int64_t Cy = Py;
+	if(Cx < 0)
+		Cx = 0;
+	else if(Cx >= MapWpx)
+		Cx = MapWpx - 1;
+	if(Cy < 0)
+		Cy = 0;
+	else if(Cy >= MapHpx)
+		Cy = MapHpx - 1;
+
+	const int Nx = (int)(Cx / 32);
+	const int Ny = (int)(Cy / 32);
 	const int Index = Ny * m_Width + Nx;
 
 	if(m_pTiles[Index].m_Index >= TILE_SOLID && m_pTiles[Index].m_Index <= TILE_NOLASER)
@@ -357,11 +377,8 @@ int CCollision::GetTilePixels(int64_t Px, int64_t Py) const
 
 int CCollision::GetTile(int x, int y) const
 {
-	// Prefer GetTilePixels via wcoord CheckPoint for large worlds; this int path
-	// is only correct inside int32 pixel range.
-	if(x < 0 || y < 0 || x >= m_Width * 32 || y >= m_Height * 32)
-		return 0;
-	return GetTilePixels(x, y);
+	// int pixel path: still go through GetTilePixels so near-border clamp is consistent
+	return GetTilePixels((int64_t)x, (int64_t)y);
 }
 
 bool CCollision::CheckPoint(wcoord x, wcoord y) const
